@@ -55,6 +55,9 @@ const medusaConfig = {
       resolve: './src/modules/pricing-formula'
     },
     {
+      resolve: './src/modules/invoice-generator'
+    },
+    {
       key: Modules.FILE,
       resolve: '@medusajs/file',
       options: {
