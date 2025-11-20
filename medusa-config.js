@@ -51,6 +51,9 @@ const medusaConfig = {
   },
   modules: [
     {
+      resolve: './src/modules/pricing-formula'
+    },
+    {
       key: Modules.FILE,
       resolve: '@medusajs/file',
       options: {
@@ -160,5 +163,4 @@ const medusaConfig = {
   ]
 };
 
-console.log(JSON.stringify(medusaConfig, null, 2));
 export default defineConfig(medusaConfig);
