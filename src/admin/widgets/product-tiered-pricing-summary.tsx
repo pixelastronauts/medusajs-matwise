@@ -7,8 +7,15 @@ const VariantTieredPricingWidget = ({ data }: { data: any }) => {
   const navigate = useNavigate()
   const variant = data
 
+  // Return null if no variant data
+  if (!variant || !variant.id || !variant.product_id) {
+    return null
+  }
+
   // Check if variant has volume pricing tiers in metadata
-  const volumePricingTiers = variant?.metadata?.volume_pricing_tiers || []
+  const volumePricingTiers = Array.isArray(variant?.metadata?.volume_pricing_tiers) 
+    ? variant.metadata.volume_pricing_tiers 
+    : []
   const hasTieredPricing = volumePricingTiers.length > 0
 
   const tierCount = volumePricingTiers.length
