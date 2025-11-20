@@ -79,10 +79,11 @@ export const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
 export const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || process.env.SENDGRID_FROM;
 
 /**
- * (optional) Stripe API key and webhook secret
+ * (optional) Mollie API key, redirect URL and Medusa URL
  */
-export const STRIPE_API_KEY = process.env.STRIPE_API_KEY;
-export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+export const MOLLIE_API_KEY = process.env.MOLLIE_API_KEY;
+export const MOLLIE_REDIRECT_URL = process.env.MOLLIE_REDIRECT_URL;
+export const MEDUSA_URL = process.env.MEDUSA_URL || BACKEND_URL;
 
 /**
  * (optional) Meilisearch configuration

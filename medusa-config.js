@@ -13,8 +13,9 @@ import {
   SENDGRID_FROM_EMAIL,
   SHOULD_DISABLE_ADMIN,
   STORE_CORS,
-  STRIPE_API_KEY,
-  STRIPE_WEBHOOK_SECRET,
+  MOLLIE_API_KEY,
+  MOLLIE_REDIRECT_URL,
+  MEDUSA_URL,
   WORKER_MODE,
   MINIO_ENDPOINT,
   MINIO_ACCESS_KEY,
@@ -120,17 +121,20 @@ const medusaConfig = {
         ]
       }
     }] : []),
-    ...(STRIPE_API_KEY && STRIPE_WEBHOOK_SECRET ? [{
+    ...(MOLLIE_API_KEY ? [{
       key: Modules.PAYMENT,
       resolve: '@medusajs/payment',
       options: {
         providers: [
           {
-            resolve: '@medusajs/payment-stripe',
-            id: 'stripe',
+            resolve: '@variablevic/mollie-payments-medusa/providers/mollie',
+            id: 'mollie',
             options: {
-              apiKey: STRIPE_API_KEY,
-              webhookSecret: STRIPE_WEBHOOK_SECRET,
+              apiKey: MOLLIE_API_KEY,
+              redirectUrl: MOLLIE_REDIRECT_URL,
+              medusaUrl: MEDUSA_URL,
+              autoCapture: true,
+              debug: false,
             },
           },
         ],
@@ -138,7 +142,7 @@ const medusaConfig = {
     }] : [])
   ],
   plugins: [
-  ...(MEILISEARCH_HOST && MEILISEARCH_ADMIN_KEY ? [{
+    ...(MEILISEARCH_HOST && MEILISEARCH_ADMIN_KEY ? [{
       resolve: '@rokmohar/medusa-plugin-meilisearch',
       options: {
         config: {
