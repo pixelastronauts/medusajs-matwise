@@ -58,6 +58,26 @@ const medusaConfig = {
       resolve: './src/modules/invoice-generator'
     },
     {
+      resolve: './src/modules/vat_validation'
+    },
+    {
+      key: Modules.TAX,
+      resolve: '@medusajs/medusa/tax',
+      options: {
+        providers: [
+          {
+            resolve: './src/modules/vat_tax_provider',
+            id: 'vat_tax_provider',
+            options: {
+              home_country: 'NL',
+              default_tax_rate: 21,
+              debug: false,
+            },
+          },
+        ],
+      },
+    },
+    {
       key: Modules.FILE,
       resolve: '@medusajs/file',
       options: {

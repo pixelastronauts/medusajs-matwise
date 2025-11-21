@@ -181,6 +181,9 @@ class InvoiceGeneratorService extends MedusaService({
                 { text: "Bill To:", style: "sectionHeader" },
                 {
                   text: [
+                    ...(params.order.billing_address?.company
+                      ? [params.order.billing_address.company, "\n"]
+                      : []),
                     params.order.billing_address?.first_name || "",
                     " ",
                     params.order.billing_address?.last_name || "",
@@ -197,6 +200,9 @@ class InvoiceGeneratorService extends MedusaService({
                     params.order.billing_address?.postal_code || "",
                     "\n",
                     params.order.billing_address?.country_code || "",
+                    ...(params.order.metadata?.vat_number
+                      ? ["\n", "VAT: ", params.order.metadata.vat_number as string]
+                      : []),
                   ],
                   style: "addressText",
                 },
@@ -208,6 +214,9 @@ class InvoiceGeneratorService extends MedusaService({
                 { text: "Ship To:", style: "sectionHeader" },
                 {
                   text: [
+                    ...(params.order.shipping_address?.company
+                      ? [params.order.shipping_address.company, "\n"]
+                      : []),
                     params.order.shipping_address?.first_name || "",
                     " ",
                     params.order.shipping_address?.last_name || "",

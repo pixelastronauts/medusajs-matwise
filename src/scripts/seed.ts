@@ -70,7 +70,16 @@ export default async function seedDemoData({ container }: ExecArgs) {
     },
   });
   logger.info("Seeding region data...");
-  const { result: regionResult } = await createRegionsWorkflow(container).run({
+  
+  // Import and run tax setup
+  const seedTaxSetup = (await import('./seed-tax-setup')).default
+  await seedTaxSetup({ container })
+  
+  // Get the created region
+  const regions = await container.resolve(Modules.REGION).listRegions({
+    name: "Europe (EU)",
+  });
+  const region = regions[0] || (await createRegionsWorkflow(container).run({
     input: {
       regions: [
         {
@@ -78,21 +87,14 @@ export default async function seedDemoData({ container }: ExecArgs) {
           currency_code: "eur",
           countries,
           payment_providers: ["pp_system_default"],
+          metadata: {
+            tax_inclusive_pricing: true,
+          },
         },
       ],
     },
-  });
-  const region = regionResult[0];
-  logger.info("Finished seeding regions.");
-
-  logger.info("Seeding tax regions...");
-  await createTaxRegionsWorkflow(container).run({
-    input: countries.map((country_code) => ({
-      country_code,
-      provider_id: "tp_system"
-    })),
-  });
-  logger.info("Finished seeding tax regions.");
+  })).result[0];
+  logger.info("Finished seeding regions with tax-inclusive pricing.");
 
   logger.info("Seeding stock location data...");
   const { result: stockLocationResult } = await createStockLocationsWorkflow(

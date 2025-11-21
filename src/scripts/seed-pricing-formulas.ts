@@ -29,13 +29,12 @@ export default async function seedPricingFormulas({ container }: ExecArgs) {
     if (existing) {
       logger.info("✨ Updating existing Mat Pricing Formula...");
       
-      // Update to use sqm-based calculation
+      // Update to use sqm-based calculation WITHOUT tax (let tax provider handle it)
       formula = await pricingFormulaService.updateFormula(existing.id, {
         name: "Mat Pricing Formula",
-        description: "Dynamic pricing based on square meters with shipping, markup, and profit. Calculates: ((sqm * price_per_sqm + shipping) * (1 + markup) + profit) * (1 + tax)",
-        formula_string: "((width_value * length_value / 10000 * price_per_sqm + shipping_fee) * (additional_markup + 1) + base_profit) * (tax + 1)",
+        description: "Dynamic pricing based on square meters with shipping, markup, and profit (EXCL. TAX). Calculates: ((sqm * price_per_sqm + shipping) * (1 + markup) + profit)",
+        formula_string: "((width_value * length_value / 10000 * price_per_sqm + shipping_fee) * (additional_markup + 1) + base_profit)",
         parameters: {
-          tax: 0.21,              // 21% VAT
           base_profit: 47,        // €47 base profit per item
           shipping_fee: 12,       // €12 shipping cost
           additional_markup: 0.9, // 90% markup

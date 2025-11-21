@@ -1,10 +1,8 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
-import { Container, Heading, Button, Badge, Text } from "@medusajs/ui"
-import { useNavigate } from "react-router-dom"
+import { Container, Heading, Badge, Text } from "@medusajs/ui"
 
 // Widget that appears on the variant detail page
 const VariantTieredPricingWidget = ({ data }: { data: any }) => {
-  const navigate = useNavigate()
   const variant = data
 
   // Return null if no variant data
@@ -20,9 +18,7 @@ const VariantTieredPricingWidget = ({ data }: { data: any }) => {
 
   const tierCount = volumePricingTiers.length
 
-  const handleManagePricing = () => {
-    navigate(`/products/${variant.product_id}/variants/${variant.id}/tiered-pricing`)
-  }
+  const pricingUrl = `/products/${variant.product_id}/variants/${variant.id}/tiered-pricing`
 
   return (
     <Container className="p-4">
@@ -44,9 +40,13 @@ const VariantTieredPricingWidget = ({ data }: { data: any }) => {
               : "Set up volume discounts to encourage bulk purchases and increase order sizes."}
           </Text>
         </div>
-        <Button size="small" variant="secondary" onClick={handleManagePricing}>
-          {hasTieredPricing ? "Edit Tiers" : "Set Up Pricing"}
-        </Button>
+        <a href={pricingUrl}>
+          <button 
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background border border-input hover:bg-accent hover:text-accent-foreground h-8 px-3"
+          >
+            {hasTieredPricing ? "Edit Tiers" : "Set Up Pricing"}
+          </button>
+        </a>
       </div>
 
       {hasTieredPricing && (
@@ -55,7 +55,7 @@ const VariantTieredPricingWidget = ({ data }: { data: any }) => {
             Volume Pricing (€/m²):
           </Text>
           {volumePricingTiers
-            .sort((a: any, b: any) => a.minQty - b.minQty)
+            .sort((a: any, b: any) => (a.minQty || 0) - (b.minQty || 0))
             .map((tier: any, index: number) => {
               const basePricePerSqm = volumePricingTiers[0]?.pricePerSqm || 0
               const discountPercent = basePricePerSqm > 0 
@@ -77,7 +77,7 @@ const VariantTieredPricingWidget = ({ data }: { data: any }) => {
                       </Badge>
                     )}
                     <span className="font-semibold">
-                      €{tier.pricePerSqm.toFixed(2)}/m²
+                      €{(tier.pricePerSqm || 0).toFixed(2)}/m²
                     </span>
                   </div>
                 </div>

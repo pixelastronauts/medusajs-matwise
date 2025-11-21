@@ -283,7 +283,7 @@ const TieredPricingPage = () => {
                 Order {tier.minQty}-{tier.maxQty || "∞"} items:
               </span>
               <span className="font-semibold text-gray-900">
-                €{tier.pricePerSqm.toFixed(2)}/m² = €{tier.pricePerSqm.toFixed(2)} each
+                €{(tier.pricePerSqm || 0).toFixed(2)}/m² = €{(tier.pricePerSqm || 0).toFixed(2)} each
               </span>
             </div>
           ))}
