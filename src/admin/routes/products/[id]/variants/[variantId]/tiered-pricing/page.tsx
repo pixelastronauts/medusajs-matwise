@@ -161,8 +161,8 @@ const TieredPricingPage = () => {
         <Heading level="h1" className="text-xl">
           Volume Pricing for {variant?.title}
         </Heading>
-        <Button variant="secondary" onClick={() => navigate(`/products/${productId}/variants/${variantId}`)}>
-          Back to Variant
+        <Button variant="secondary" onClick={() => navigate(`/products/${productId}`)}>
+          Back to Product
         </Button>
       </div>
 
@@ -283,7 +283,7 @@ const TieredPricingPage = () => {
                 Order {tier.minQty}-{tier.maxQty || "∞"} items:
               </span>
               <span className="font-semibold text-gray-900">
-                €{(tier.pricePerSqm || 0).toFixed(2)}/m² = €{(tier.pricePerSqm || 0).toFixed(2)} each
+                €{tier.pricePerSqm.toFixed(2)}/m² = €{tier.pricePerSqm.toFixed(2)} each
               </span>
             </div>
           ))}
@@ -302,4 +302,6 @@ export const config = defineRouteConfig({
 })
 
 export default TieredPricingPage
+
+
 

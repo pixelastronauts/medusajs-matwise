@@ -1,9 +1,8 @@
 import { Container, Heading, Table, Button, Badge } from "@medusajs/ui"
 import { useNavigate } from "react-router-dom"
 import { useState, useEffect } from "react"
-import { PencilSquare, Trash, Plus } from "@medusajs/icons"
+import { PencilSquare, Trash, Plus, CurrencyDollar } from "@medusajs/icons"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { CurrencyDollar } from "@medusajs/icons"
 
 type PricingFormula = {
   id: string
@@ -202,4 +201,3 @@ export const config = defineRouteConfig({
 })
 
 export default PricingFormulasPage
-

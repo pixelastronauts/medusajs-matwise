@@ -13,3 +13,4 @@ export const Invoice = model.define("invoice", {
   pdfContent: model.json(),
 })
 
+

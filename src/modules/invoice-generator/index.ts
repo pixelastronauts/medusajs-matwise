@@ -9,3 +9,4 @@ export default Module(INVOICE_MODULE, {
   loaders: [createDefaultConfigLoader],
 })
 
+

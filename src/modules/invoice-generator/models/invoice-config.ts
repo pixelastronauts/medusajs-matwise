@@ -10,3 +10,4 @@ export const InvoiceConfig = model.define("invoice_config", {
   notes: model.text().nullable(),
 })
 
+

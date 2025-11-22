@@ -97,3 +97,4 @@ export const config = defineWidgetConfig({
 
 export default OrderVatInfoWidget
 
+

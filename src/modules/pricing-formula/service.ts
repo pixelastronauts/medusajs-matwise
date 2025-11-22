@@ -170,3 +170,4 @@ class PricingFormulaModuleService extends MedusaService({
 
 export default PricingFormulaModuleService;
 
+

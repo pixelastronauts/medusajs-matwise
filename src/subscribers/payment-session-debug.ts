@@ -80,3 +80,4 @@ export const config: SubscriberConfig = {
   event: ['payment.created', 'payment-collection.created']
 }
 
+

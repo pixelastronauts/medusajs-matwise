@@ -12,3 +12,4 @@ const PricingFormula = model.define("pricing_formula", {
 
 export default PricingFormula;
 
+
