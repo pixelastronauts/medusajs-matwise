@@ -12,7 +12,7 @@ export default async function cleanupVatAdjustments(container: MedusaContainer) 
   
   try {
     // Get all carts
-    const { carts } = await cartModuleService.listCarts({}, {
+    const carts = await cartModuleService.listCarts({}, {
       relations: ['items', 'items.adjustments']
     })
     

@@ -67,7 +67,8 @@ export default async function fixNlTaxRegion({ container }: ExecArgs) {
       // Update existing region if needed
       const nlRegion = nlTaxRegions[0]
       if (nlRegion.provider_id !== vatTaxProvider.id) {
-        await taxModuleService.updateTaxRegions(nlRegion.id, {
+        await taxModuleService.updateTaxRegions({
+          id: nlRegion.id,
           provider_id: vatTaxProvider.id,
           metadata: {
             is_eu: true,

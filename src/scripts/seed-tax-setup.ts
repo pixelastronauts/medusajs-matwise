@@ -133,7 +133,7 @@ export default async function seedTaxSetup({ container }: ExecArgs) {
     
     if (!vatTaxProvider) {
       logger.error("❌ VAT tax provider not found! Make sure it's registered in medusa-config.js")
-      logger.info("Available providers:", taxProviders.map(p => p.id))
+      logger.info(`Available providers: ${taxProviders.map(p => p.id).join(', ')}`)
       throw new Error("VAT tax provider not registered")
     }
     
@@ -151,7 +151,8 @@ export default async function seedTaxSetup({ container }: ExecArgs) {
         if (existingTaxRegions.length > 0 && existingTaxRegions[0]?.id) {
           // Update existing tax region
           const taxRegion = existingTaxRegions[0]
-          await taxModuleService.updateTaxRegions(taxRegion.id, {
+          await taxModuleService.updateTaxRegions({
+            id: taxRegion.id,
             provider_id: vatTaxProvider.id,
             metadata: {
               is_eu: true,
@@ -195,40 +196,38 @@ export default async function seedTaxSetup({ container }: ExecArgs) {
 
       if (existingRates.length === 0) {
         await createTaxRatesWorkflow(container).run({
-          input: {
-            tax_rates: [
-              {
-                tax_region_id: nlTaxRegion[0].id,
-                name: "Standard Rate",
-                code: "STANDARD",
-                rate: 21,
-                is_default: true,
-                metadata: {
-                  description: "Standard VAT rate for Netherlands",
-                },
+          input: [
+            {
+              tax_region_id: nlTaxRegion[0].id,
+              name: "Standard Rate",
+              code: "STANDARD",
+              rate: 21,
+              is_default: true,
+              metadata: {
+                description: "Standard VAT rate for Netherlands",
               },
-              {
-                tax_region_id: nlTaxRegion[0].id,
-                name: "Reduced Rate",
-                code: "REDUCED",
-                rate: 9,
-                is_default: false,
-                metadata: {
-                  description: "Reduced VAT rate for specific goods (food, books, etc.)",
-                },
+            },
+            {
+              tax_region_id: nlTaxRegion[0].id,
+              name: "Reduced Rate",
+              code: "REDUCED",
+              rate: 9,
+              is_default: false,
+              metadata: {
+                description: "Reduced VAT rate for specific goods (food, books, etc.)",
               },
-              {
-                tax_region_id: nlTaxRegion[0].id,
-                name: "Zero Rate",
-                code: "ZERO",
-                rate: 0,
-                is_default: false,
-                metadata: {
-                  description: "Zero rate for exports and specific services",
-                },
+            },
+            {
+              tax_region_id: nlTaxRegion[0].id,
+              name: "Zero Rate",
+              code: "ZERO",
+              rate: 0,
+              is_default: false,
+              metadata: {
+                description: "Zero rate for exports and specific services",
               },
-            ],
-          },
+            },
+          ],
         })
         logger.info("✓ Created tax rates for Netherlands")
       } else {

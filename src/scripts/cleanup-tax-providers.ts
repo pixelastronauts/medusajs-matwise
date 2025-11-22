@@ -43,7 +43,8 @@ export default async function cleanupTaxProviders({ container }: ExecArgs) {
     for (const taxRegion of taxRegions) {
       try {
         if (taxRegion.provider_id !== vatTaxProvider.id) {
-          await taxModuleService.updateTaxRegions(taxRegion.id, {
+          await taxModuleService.updateTaxRegions({
+            id: taxRegion.id,
             provider_id: vatTaxProvider.id,
           })
           logger.info(`  ✓ Updated ${taxRegion.country_code?.toUpperCase()} to use ${vatTaxProvider.id}`)

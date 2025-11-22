@@ -1,6 +1,7 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { InvoiceStatus } from "../../modules/invoice-generator/models/invoice"
 import { INVOICE_MODULE } from "../../modules/invoice-generator"
+import InvoiceGeneratorService from "../../modules/invoice-generator/service"
 
 type StepInput = {
   selector: {
@@ -14,7 +15,7 @@ type StepInput = {
 export const updateInvoicesStep = createStep(
   "update-invoices",
   async ({ selector, data }: StepInput, { container }) => {
-    const invoiceGeneratorService = container.resolve(INVOICE_MODULE)
+    const invoiceGeneratorService = container.resolve(INVOICE_MODULE) as InvoiceGeneratorService
 
     const prevData = await invoiceGeneratorService.listInvoices(
       selector
@@ -32,7 +33,7 @@ export const updateInvoicesStep = createStep(
       return
     }
 
-    const invoiceGeneratorService = container.resolve(INVOICE_MODULE)
+    const invoiceGeneratorService = container.resolve(INVOICE_MODULE) as InvoiceGeneratorService
 
     await invoiceGeneratorService.updateInvoices(
       prevData.map((i) => ({

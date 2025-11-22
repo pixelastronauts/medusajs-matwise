@@ -20,7 +20,8 @@ export default async function updateTaxProvider({ container }: ExecArgs) {
 
     // Update each tax region to use the new provider
     for (const taxRegion of taxRegions) {
-      await taxModuleService.updateTaxRegions(taxRegion.id, {
+      await taxModuleService.updateTaxRegions({
+        id: taxRegion.id,
         provider_id: "vat_tax",
       })
       logger.info(`Updated tax region ${taxRegion.country_code} to use vat_tax provider`)

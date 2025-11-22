@@ -15,7 +15,6 @@ export default async function paymentCreatedHandler({
 
   try {
     console.log('\n💳 ===== PAYMENT CREATED: REVERSE CHARGE CHECK =====')
-    console.log('Event:', event.name)
     console.log('Data:', JSON.stringify(data, null, 2))
     
     // Get payment collection ID from the event
@@ -29,7 +28,7 @@ export default async function paymentCreatedHandler({
     // Get the payment collection with cart
     const paymentCollection = await paymentModule.retrievePaymentCollection(paymentCollectionId, {
       relations: ['payment_sessions']
-    })
+    }) as any
     
     if (!paymentCollection || !paymentCollection.cart_id) {
       console.log('❌ Payment collection or cart not found')
@@ -45,7 +44,7 @@ export default async function paymentCreatedHandler({
         'metadata',
       ],
       filters: {
-        id: paymentCollection.cart_id,
+        id: paymentCollection.cart_id as string,
       },
     })
 
@@ -76,8 +75,10 @@ export default async function paymentCreatedHandler({
       // Also update payment sessions if they exist
       if (paymentCollection.payment_sessions && paymentCollection.payment_sessions.length > 0) {
         for (const session of paymentCollection.payment_sessions) {
-          await paymentModule.updatePaymentSession(session.id, {
+          await paymentModule.updatePaymentSession({
+            id: session.id,
             amount: adjustedAmount,
+            currency_code: session.currency_code,
             data: {
               ...session.data,
               reverse_charge_applied: true,

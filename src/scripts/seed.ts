@@ -72,7 +72,7 @@ export default async function seedDemoData({ container }: ExecArgs) {
   logger.info("Seeding region data...");
   
   // Import and run tax setup
-  const seedTaxSetup = (await import('./seed-tax-setup')).default
+  const { default: seedTaxSetup } = await import('./seed-tax-setup.js') as any
   await seedTaxSetup({ container })
   
   // Get the created region

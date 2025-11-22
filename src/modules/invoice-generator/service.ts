@@ -49,7 +49,7 @@ class InvoiceGeneratorService extends MedusaService({
   ): Promise<Record<string, any>> {
     // Get invoice configuration
     const invoiceConfigs = await this.listInvoiceConfigs()
-    const config = invoiceConfigs[0] || {}
+    const config = invoiceConfigs[0] as InferTypeOf<typeof InvoiceConfig> | undefined
 
     // Create table for order items
     const itemsTable = [
@@ -90,9 +90,9 @@ class InvoiceGeneratorService extends MedusaService({
           {
             width: "*",
             stack: [
-              ...(config.company_logo ? [
+              ...(config?.company_logo ? [
                 {
-                  image: await this.imageUrlToBase64(config.company_logo),
+                  image: await this.imageUrlToBase64(config!.company_logo!),
                   width: 80,
                   height: 40,
                   fit: [80, 40],
@@ -100,7 +100,7 @@ class InvoiceGeneratorService extends MedusaService({
                 },
               ] : []),
               {
-                text: config.company_name || "Your Company Name",
+                text: config?.company_name || "Your Company Name",
                 style: "companyName",
                 margin: [0, 0, 0, 0],
               },
@@ -126,9 +126,9 @@ class InvoiceGeneratorService extends MedusaService({
             {
               width: "*",
               stack: [
-                { text: config.company_address || "", style: "companyDetails" },
-                { text: config.company_phone || "", style: "companyDetails" },
-                { text: config.company_email || "", style: "companyDetails" },
+                { text: config?.company_address || "", style: "companyDetails" },
+                { text: config?.company_phone || "", style: "companyDetails" },
+                { text: config?.company_email || "", style: "companyDetails" },
               ],
             },
             {
@@ -355,7 +355,7 @@ class InvoiceGeneratorService extends MedusaService({
         },
 
         /** Notes */
-        ...(config.notes
+        ...(config?.notes
           ? [
               {
                 text: "Notes:",

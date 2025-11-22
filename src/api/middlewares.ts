@@ -71,7 +71,7 @@ export default defineMiddlewares({
               console.log(`   Cart total: €${(originalAmount / 100).toFixed(2)}`)
               console.log(`   VAT to remove: €${(reverseChargeAmount / 100).toFixed(2)}`)
               console.log(`   Adjusted amount: €${(adjustedAmount / 100).toFixed(2)}`)
-              console.log(`   Current payment collection amount: €${(paymentCollection.amount / 100).toFixed(2)}`)
+              console.log(`   Current payment collection amount: €${(Number(paymentCollection.amount) / 100).toFixed(2)}`)
               
               // Only update if the amount is different (avoid unnecessary updates)
               if (paymentCollection.amount !== adjustedAmount) {

@@ -12,7 +12,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   
   try {
     // Get all carts
-    const { carts } = await cartModuleService.listCarts({}, {
+    const carts = await cartModuleService.listCarts({}, {
       relations: ['items', 'items.adjustments']
     })
     
