@@ -101,3 +101,9 @@ export const WORKER_MODE =
  * Disable Admin
  */
 export const SHOULD_DISABLE_ADMIN = process.env.MEDUSA_DISABLE_ADMIN === 'true'
+
+/**
+ * Dashboard Configuration
+ */
+export const DASHBOARD_API_URL = process.env.DASHBOARD_API_URL || 'http://localhost:8000/api'
+export const DASHBOARD_WEBHOOK_SECRET = process.env.DASHBOARD_WEBHOOK_SECRET
