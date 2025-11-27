@@ -81,7 +81,7 @@ export async function POST(
         try {
           await cancelOrderChangeWorkflow(req.scope).run({
             input: {
-              order_change_id: change.id,
+              id: change.id,
             },
           })
           console.log(`Canceled order change: ${change.id}`)

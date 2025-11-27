@@ -13,7 +13,7 @@ export const calculateRefundStep = createStep(
     const { order_id } = input
 
     // Get the updated order to calculate refund amount
-    const order = await orderModuleService.retrieveOrder(order_id, {
+    const order: any = await orderModuleService.retrieveOrder(order_id, {
       relations: ["items", "payment_collection", "payment_collection.payments"],
     })
 
@@ -24,10 +24,10 @@ export const calculateRefundStep = createStep(
       )
     }
 
-    const newTotal = parseFloat(order.total)
+    const newTotal = parseFloat(String(order.total))
     const paidAmount =
       order.payment_collection?.payments?.reduce(
-        (sum: number, payment: any) => sum + parseFloat(payment.amount),
+        (sum: number, payment: any) => sum + parseFloat(String(payment.amount)),
         0
       ) || 0
 

@@ -42,7 +42,7 @@ export const applyDiscountToOrderStep = createStep(
       )
     }
 
-    const originalTotal = parseFloat(order.total)
+    const originalTotal = parseFloat(String(order.total))
 
     // Calculate discount per item
     if (!discount_amount || discount_amount <= 0) {

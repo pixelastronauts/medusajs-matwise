@@ -81,12 +81,8 @@ export default async function dashboardSync({
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error(`Failed to sync ${name} to dashboard: ${errorMessage}`, {
-      event: name,
-      dataId: data?.id,
-      dashboardUrl: DASHBOARD_API_URL,
-      error: errorMessage,
-    })
+    logger.error(`Failed to sync ${name} to dashboard: ${errorMessage}`)
+    logger.debug(`Sync error details - event: ${name}, dataId: ${data?.id}, dashboardUrl: ${DASHBOARD_API_URL}, error: ${errorMessage}`)
   }
 }
 

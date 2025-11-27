@@ -19,7 +19,7 @@ export async function POST(
 
   try {
     // Get the order with payment information
-    const order = await orderModuleService.retrieveOrder(orderId, {
+    const order: any = await orderModuleService.retrieveOrder(orderId, {
       relations: ["payment_collection", "payment_collection.payments"],
     })
 
@@ -40,7 +40,7 @@ export async function POST(
 
     // Calculate total paid amount
     const paidAmount = order.payment_collection.payments.reduce(
-      (sum: number, payment: any) => sum + parseFloat(payment.amount),
+      (sum: number, payment: any) => sum + parseFloat(String(payment.amount)),
       0
     )
 
@@ -67,7 +67,7 @@ export async function POST(
       input: [{
         payment_id: payment.id,
         amount: amount,
-        created_by: req.auth_context?.actor_id,
+        created_by: (req as any).auth_context?.actor_id,
         note: note || reason || "Retroactive discount refund",
       }],
     })
@@ -83,7 +83,7 @@ export async function POST(
             reason: reason || "Retroactive discount",
             note: note,
             created_at: new Date().toISOString(),
-            created_by: req.auth_context?.actor_id,
+            created_by: (req as any).auth_context?.actor_id,
           },
         ],
       },
