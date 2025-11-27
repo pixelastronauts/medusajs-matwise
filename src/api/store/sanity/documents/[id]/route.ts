@@ -12,3 +12,4 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   res.json({ sanity_document: sanityDocument })
 }
 
+

@@ -51,3 +51,4 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   res.json({ syncs: results })
 }
 
+

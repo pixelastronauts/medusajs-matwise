@@ -16,3 +16,4 @@ export const config: SubscriberConfig = {
   event: ["product-collection.created", "product-collection.updated"],
 }
 
+
