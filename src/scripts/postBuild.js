@@ -30,3 +30,6 @@ execSync('bun install --production --frozen-lockfile', {
   cwd: MEDUSA_SERVER_PATH,
   stdio: 'inherit'
 });
+
+// Note: Migrations will be run by the start script before starting the server
+console.log('Build completed. Run migrations before starting the server with: bun run migrate');
