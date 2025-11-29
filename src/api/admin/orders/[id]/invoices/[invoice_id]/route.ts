@@ -23,7 +23,7 @@ export async function GET(
   }
 
   // Generate the PDF based on invoice type
-  let pdf_buffer: ArrayBuffer
+  let pdf_buffer: Buffer
 
   if (invoice.type === InvoiceType.CREDIT_NOTE) {
     const { result } = await generateCreditNotePdfWorkflow(req.scope).run({
@@ -33,14 +33,14 @@ export async function GET(
         amount: Number(invoice.amount),
       },
     })
-    pdf_buffer = result.pdf_buffer
+    pdf_buffer = result.pdf_buffer as Buffer
   } else {
     const { result } = await generateInvoicePdfWorkflow(req.scope).run({
       input: {
         order_id: orderId,
       },
     })
-    pdf_buffer = result.pdf_buffer
+    pdf_buffer = result.pdf_buffer as Buffer
   }
 
   const buffer = Buffer.from(pdf_buffer)

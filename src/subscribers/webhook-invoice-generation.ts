@@ -84,7 +84,7 @@ export async function orderPlacedWebhookHandler({
 /**
  * Send refund data to Laravel Dashboard for credit note generation
  */
-export async function refundCreatedWebhookHandler({
+async function refundCreatedWebhookHandler({
   event: { data },
   container,
 }: SubscriberArgs<any>) {
