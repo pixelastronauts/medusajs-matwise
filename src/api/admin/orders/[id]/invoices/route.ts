@@ -1,30 +1,36 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
-import { generateInvoicePdfWorkflow } from "../../../../../workflows/generate-invoice-pdf"
+import { INVOICE_MODULE } from "../../../../../modules/invoice-generator"
+import InvoiceGeneratorService from "../../../../../modules/invoice-generator/service"
 
+// GET /admin/orders/:id/invoices - List all invoices for an order
 export async function GET(
   req: MedusaRequest,
   res: MedusaResponse
 ): Promise<void> {
-  const { id } = req.params
+  const { id: orderId } = req.params
 
-  const { result: {
-    pdf_buffer,
-  } } = await generateInvoicePdfWorkflow(req.scope)
-    .run({
-      input: {
-        order_id: id,
-      },
-    })
+  const invoiceGeneratorService = req.scope.resolve(INVOICE_MODULE) as InvoiceGeneratorService
 
-  const buffer = Buffer.from(pdf_buffer)
-
-  res.set({
-    "Content-Type": "application/pdf",
-    "Content-Disposition": `attachment; filename="invoice-${id}.pdf"`,
-    "Content-Length": buffer.length,
+  // Get all invoices for this order
+  const invoices = await invoiceGeneratorService.listInvoices({
+    order_id: orderId,
   })
-  
-  res.send(buffer)
+
+  // Sort by created_at descending (newest first)
+  const sortedInvoices = invoices.sort((a, b) => 
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )
+
+  res.json({
+    invoices: sortedInvoices.map(invoice => ({
+      id: invoice.id,
+      display_id: invoice.display_id,
+      type: invoice.type,
+      refund_id: invoice.refund_id,
+      amount: invoice.amount,
+      created_at: invoice.created_at,
+    }))
+  })
 }
 
 

@@ -36,8 +36,14 @@ export default async function dashboardSync({
         
         // Retrieve full order with relations
         const order = await orderModuleService.retrieveOrder(data.id, { 
-          relations: ['items', 'shipping_address', 'billing_address'] 
+          relations: ['items', 'shipping_address', 'billing_address', 'summary'] 
         })
+
+        // Loop prevention: Check if this was recently synced from dashboard
+        if (shouldSkipSync(order.metadata, 'order', logger)) {
+          logger.info(`Skipping order sync to prevent loop - orderId: ${order.id}`)
+          return
+        }
 
         // Fetch and attach customer if present
         if (order.customer_id) {
@@ -56,9 +62,17 @@ export default async function dashboardSync({
       case 'customer.created':
       case 'customer.updated':
         const customerModuleService: ICustomerModuleService = container.resolve(Modules.CUSTOMER)
-        payload = await customerModuleService.retrieveCustomer(data.id, {
+        const customer = await customerModuleService.retrieveCustomer(data.id, {
             relations: ['addresses']
         })
+
+        // Loop prevention: Check if this was recently synced from dashboard
+        if (shouldSkipSync(customer.metadata, 'customer', logger)) {
+          logger.info(`Skipping customer sync to prevent loop - customerId: ${customer.id}`)
+          return
+        }
+
+        payload = customer
         endpoint = '/webhooks/medusa/customers'
         break
 
@@ -84,6 +98,35 @@ export default async function dashboardSync({
     logger.error(`Failed to sync ${name} to dashboard: ${errorMessage}`)
     logger.debug(`Sync error details - event: ${name}, dataId: ${data?.id}, dashboardUrl: ${DASHBOARD_API_URL}, error: ${errorMessage}`)
   }
+}
+
+/**
+ * Check if sync should be skipped to prevent endless loops
+ * Returns true if this entity was recently synced FROM the dashboard
+ */
+function shouldSkipSync(metadata: any, entityType: string, logger: any): boolean {
+  if (!metadata) return false
+
+  const lastSyncedFrom = metadata._last_synced_from
+  const lastSyncedAt = metadata._last_synced_at
+
+  // If this was synced from dashboard, check if it's recent (within 30 seconds)
+  if (lastSyncedFrom === 'dashboard' && lastSyncedAt) {
+    try {
+      const syncedAt = new Date(lastSyncedAt)
+      const now = new Date()
+      const diffInSeconds = (now.getTime() - syncedAt.getTime()) / 1000
+
+      if (diffInSeconds < 30) {
+        logger.debug(`${entityType} was synced from dashboard ${diffInSeconds}s ago, skipping to prevent loop`)
+        return true
+      }
+    } catch (e) {
+      logger.warn(`Failed to parse _last_synced_at date: ${lastSyncedAt}`)
+    }
+  }
+
+  return false
 }
 
 async function sendToDashboard(endpoint: string, data: any, eventName: string, logger: any) {

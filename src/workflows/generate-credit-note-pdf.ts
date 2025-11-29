@@ -2,13 +2,16 @@ import { createWorkflow, transform, WorkflowResponse } from "@medusajs/framework
 import { generateInvoicePdfStep, GenerateInvoicePdfStepInput } from "./steps/generate-invoice-pdf"
 import { useQueryGraphStep } from "@medusajs/medusa/core-flows"
 import { getOrderInvoiceStep } from "./steps/get-order-invoice"
+import { InvoiceType } from "../modules/invoice-generator/models/invoice"
 
 type WorkflowInput = {
   order_id: string
+  refund_id: string
+  amount: number
 }
 
-export const generateInvoicePdfWorkflow = createWorkflow(
-  "generate-invoice-pdf",
+export const generateCreditNotePdfWorkflow = createWorkflow(
+  "generate-credit-note-pdf",
   (input: WorkflowInput) => {
     const { data: orders } = useQueryGraphStep({
       entity: "order",
@@ -81,12 +84,12 @@ export const generateInvoicePdfWorkflow = createWorkflow(
       return order
     })
 
-    const invoiceInput = transform({ transformedOrder }, (data) => ({
-      order_id: data.transformedOrder.id,
-      amount: Number(data.transformedOrder.total),
-    }))
-
-    const invoice = getOrderInvoiceStep(invoiceInput)
+    const invoice = getOrderInvoiceStep({
+      order_id: transformedOrder.id,
+      invoice_type: InvoiceType.CREDIT_NOTE,
+      refund_id: input.refund_id,
+      amount: input.amount,
+    })
 
     const { pdf_buffer } = generateInvoicePdfStep({
       order: transformedOrder,
@@ -96,6 +99,7 @@ export const generateInvoicePdfWorkflow = createWorkflow(
 
     return new WorkflowResponse({
       pdf_buffer,
+      invoice_id: invoice.id,
     })
   }
 )

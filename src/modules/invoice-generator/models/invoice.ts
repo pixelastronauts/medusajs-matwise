@@ -1,15 +1,17 @@
 import { model } from "@medusajs/framework/utils"
 
-export enum InvoiceStatus {
-  LATEST = "latest",
-  STALE = "stale",
+export enum InvoiceType {
+  INVOICE = "invoice",
+  CREDIT_NOTE = "credit_note",
 }
 
 export const Invoice = model.define("invoice", {
   id: model.id().primaryKey(),
   display_id: model.autoincrement(),
   order_id: model.text(),
-  status: model.enum(InvoiceStatus).default(InvoiceStatus.LATEST),
+  type: model.enum(InvoiceType).default(InvoiceType.INVOICE),
+  refund_id: model.text().nullable(),
+  amount: model.bigNumber(),
   pdfContent: model.json(),
 })
 

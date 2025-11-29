@@ -1,6 +1,6 @@
 import { MedusaService } from "@medusajs/framework/utils"
 import { InvoiceConfig } from "./models/invoice-config"
-import { Invoice, InvoiceStatus } from "./models/invoice"
+import { Invoice, InvoiceType } from "./models/invoice"
 import PdfPrinter from "pdfmake"
 import { 
   InferTypeOf, 
@@ -51,8 +51,24 @@ class InvoiceGeneratorService extends MedusaService({
     const invoiceConfigs = await this.listInvoiceConfigs()
     const config = invoiceConfigs[0] as InferTypeOf<typeof InvoiceConfig> | undefined
 
-    // Create table for order items
-    const itemsTable = [
+    const isCreditNote = invoice.type === InvoiceType.CREDIT_NOTE
+    const refundAmount = Number(invoice.amount)
+
+    // For credit notes, create a simple refund line item instead of showing all order items
+    const itemsTable = isCreditNote ? [
+      [
+        { text: "Item", style: "tableHeader" },
+        { text: "Quantity", style: "tableHeader" },
+        { text: "Unit Price", style: "tableHeader" },
+        { text: "Total", style: "tableHeader" },
+      ],
+      [
+        { text: "Refund", style: "tableRow" },
+        { text: "1", style: "tableRow" },
+        { text: await this.formatAmount(-refundAmount, params.order.currency_code), style: "tableRow" },
+        { text: await this.formatAmount(-refundAmount, params.order.currency_code), style: "tableRow" },
+      ]
+    ] : [
       [
         { text: "Item", style: "tableHeader" },
         { text: "Quantity", style: "tableHeader" },
@@ -73,8 +89,10 @@ class InvoiceGeneratorService extends MedusaService({
       ]))),
     ]
 
-    const invoiceId = `INV-${invoice.display_id.toString().padStart(6, "0")}`
+    const invoicePrefix = isCreditNote ? "CN" : "INV"
+    const invoiceId = `${invoicePrefix}-${invoice.display_id.toString().padStart(6, "0")}`
     const invoiceDate = new Date(invoice.created_at).toLocaleDateString()
+    const documentTitle = isCreditNote ? "CREDIT NOTE" : "INVOICE"
 
     // return the PDF content structure
     return {
@@ -111,7 +129,7 @@ class InvoiceGeneratorService extends MedusaService({
             width: "auto",
             stack: [
               {
-                text: "INVOICE",
+                text: documentTitle,
                 style: "invoiceTitle",
                 alignment: "right",
               },
@@ -136,7 +154,7 @@ class InvoiceGeneratorService extends MedusaService({
               stack: [
                 {
                   text: [
-                    { text: "Invoice #: ", bold: true },
+                    { text: `${isCreditNote ? "Credit Note" : "Invoice"} #: `, bold: true },
                     { text: invoiceId },
                   ],
                   style: "invoiceDetails",
@@ -269,7 +287,25 @@ class InvoiceGeneratorService extends MedusaService({
             { width: "*", text: "" },
             {
               width: "auto",
-              stack: [
+              stack: isCreditNote ? [
+                // For credit notes, just show the refund amount
+                {
+                  columns: [
+                    { text: "Refund Amount:", style: "totalLabel", width: 120 },
+                    {
+                      text: await this.formatAmount(
+                        -refundAmount,
+                        params.order.currency_code
+                      ),
+                      style: "totalValue",
+                      alignment: "right",
+                      width: 100,
+                    },
+                  ],
+                  margin: [0, 0, 0, 0],
+                },
+              ] : [
+                // For regular invoices, show all breakdown
                 {
                   columns: [
                     { text: "Subtotal:", style: "totalsLabel", width: 120 },
