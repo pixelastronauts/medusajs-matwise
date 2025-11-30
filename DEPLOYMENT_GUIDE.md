@@ -14,12 +14,12 @@ This happens because database migrations haven't been run before the server star
 I've updated the `start` script to automatically run migrations before starting the server:
 
 ```json
-"start": "init-backend && cd .medusa/server && medusa migrations run && medusa start --verbose"
+"start": "init-backend && cd .medusa/server && medusa db:migrate && medusa start --verbose"
 ```
 
 This ensures that:
 1. `init-backend` sets up the environment
-2. `medusa migrations run` creates all necessary database tables
+2. `medusa db:migrate` creates all necessary database tables
 3. `medusa start` starts the server
 
 ## Railway Configuration
@@ -38,7 +38,7 @@ If you ever need to run migrations manually in Railway:
 3. Click on "Settings" → "Deploy"
 4. Add a one-time command:
    ```bash
-   cd .medusa/server && medusa migrations run
+   cd .medusa/server && medusa db:migrate
    ```
 
 Or via Railway CLI:

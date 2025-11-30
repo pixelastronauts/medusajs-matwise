@@ -14,7 +14,7 @@
 	],
 	"scripts": {
 		"build": "medusa build && node src/scripts/postBuild.js",
-		"migrate": "cd .medusa/server && medusa migrations run",
+		"migrate": "cd .medusa/server && medusa db:migrate",
 		"seed": "medusa exec ./src/scripts/seed.ts",
 		"seed:tax": "medusa exec ./src/scripts/seed-tax-setup.ts",
 		"verify:tax": "medusa exec ./src/scripts/verify-tax-setup.ts",
@@ -25,7 +25,7 @@
 		"backfill:credit-note-simple": "medusa exec ./src/scripts/backfill-credit-notes-simple.ts",
 		"recreate:credit-note": "medusa exec ./src/scripts/delete-and-recreate-credit-note.ts",
 		"ib": "init-backend",
-		"start": "init-backend && cd .medusa/server && medusa migrations run && medusa start --verbose",
+		"start": "init-backend && cd .medusa/server && medusa db:migrate && medusa start --verbose",
 		"dev": "medusa develop",
 		"email:dev": "email dev --dir=./src/modules/email-notifications/templates --port=3002",
 		"test:integration:http": "TEST_TYPE=integration:http NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",

@@ -5,7 +5,7 @@ echo "Running database migrations..."
 
 # Run migrations using Medusa CLI
 cd .medusa/server
-npx medusa migrations run
+npx medusa db:migrate
 
 echo "Migrations completed successfully"
 
