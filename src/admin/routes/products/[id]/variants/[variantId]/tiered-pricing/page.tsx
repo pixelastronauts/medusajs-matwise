@@ -118,21 +118,16 @@ const TieredPricingPage = () => {
         }
       }
 
-      // Update variant metadata with volume pricing tiers
-      const response = await fetch(`/admin/products/${productId}`, {
+      // Update only this variant's metadata without touching other variants
+      const response = await fetch(`/admin/products/${productId}/variants/${variantId}`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          variants: [
-            {
-              id: variantId,
-              metadata: {
-                ...variant.metadata,
-                volume_pricing_tiers: pricingTiers,
-              },
-            },
-          ],
+          metadata: {
+            ...variant.metadata,
+            volume_pricing_tiers: pricingTiers,
+          },
         }),
       })
 
@@ -161,7 +156,7 @@ const TieredPricingPage = () => {
         <Heading level="h1" className="text-xl">
           Volume Pricing for {variant?.title}
         </Heading>
-        <Button variant="secondary" onClick={() => navigate(`/products/${productId}`)}>
+        <Button variant="secondary" onClick={() => navigate(`/app/products/${productId}`)}>
           Back to Product
         </Button>
       </div>

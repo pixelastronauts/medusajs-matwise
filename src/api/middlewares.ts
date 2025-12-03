@@ -64,14 +64,15 @@ export default defineMiddlewares({
             if (reverseChargeApplies && reverseChargeAmount > 0) {
               // ALWAYS calculate from cart.total (not payment collection amount)
               // to avoid reducing the amount multiple times when user changes payment method
+              // Note: Medusa v2 uses MAJOR units (euros, not cents)
               const originalAmount = cart.total
               const adjustedAmount = originalAmount - reverseChargeAmount
               
               console.log(`✅ Reverse charge detected!`)
-              console.log(`   Cart total: €${(originalAmount / 100).toFixed(2)}`)
-              console.log(`   VAT to remove: €${(reverseChargeAmount / 100).toFixed(2)}`)
-              console.log(`   Adjusted amount: €${(adjustedAmount / 100).toFixed(2)}`)
-              console.log(`   Current payment collection amount: €${(Number(paymentCollection.amount) / 100).toFixed(2)}`)
+              console.log(`   Cart total: €${Number(originalAmount).toFixed(2)}`)
+              console.log(`   VAT to remove: €${Number(reverseChargeAmount).toFixed(2)}`)
+              console.log(`   Adjusted amount: €${Number(adjustedAmount).toFixed(2)}`)
+              console.log(`   Current payment collection amount: €${Number(paymentCollection.amount).toFixed(2)}`)
               
               // Only update if the amount is different (avoid unnecessary updates)
               if (paymentCollection.amount !== adjustedAmount) {

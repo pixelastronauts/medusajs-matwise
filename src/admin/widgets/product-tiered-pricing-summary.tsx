@@ -18,7 +18,7 @@ const VariantTieredPricingWidget = ({ data }: { data: any }) => {
 
   const tierCount = volumePricingTiers.length
 
-  const pricingUrl = `/products/${variant.product_id}/variants/${variant.id}/tiered-pricing`
+  const pricingUrl = `/app/products/${variant.product_id}/variants/${variant.id}/tiered-pricing`
 
   return (
     <Container className="p-4">

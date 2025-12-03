@@ -59,11 +59,12 @@ export default async function paymentCreatedHandler({
 
     if (reverseChargeApplies && reverseChargeAmount > 0) {
       console.log(`✅ Reverse charge applies`)
-      console.log(`   Cart Total: €${((cart.total || 0) / 100).toFixed(2)}`)
-      console.log(`   VAT to remove: €${(reverseChargeAmount / 100).toFixed(2)}`)
+      // Note: Medusa v2 uses MAJOR units (euros, not cents)
+      console.log(`   Cart Total: €${Number(cart.total || 0).toFixed(2)}`)
+      console.log(`   VAT to remove: €${Number(reverseChargeAmount).toFixed(2)}`)
       
       const adjustedAmount = (cart.total || 0) - reverseChargeAmount
-      console.log(`   Adjusted amount for payment: €${(adjustedAmount / 100).toFixed(2)}`)
+      console.log(`   Adjusted amount for payment: €${Number(adjustedAmount).toFixed(2)}`)
       
       // Update payment collection amount
       await paymentModule.updatePaymentCollections(paymentCollectionId, {

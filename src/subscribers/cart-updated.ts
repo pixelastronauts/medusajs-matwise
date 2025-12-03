@@ -28,6 +28,10 @@ export default async function cartUpdatedHandler({
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
 
   try {
+    // Small delay to ensure database has committed the update that triggered this event
+    // This prevents race conditions where we query stale data
+    await new Promise(resolve => setTimeout(resolve, 50))
+    
     // Retrieve the cart with calculated totals using Query
     let cart: any
     try {
@@ -114,10 +118,18 @@ export default async function cartUpdatedHandler({
     console.log(`💡 Reverse charge VAT stored in metadata (no adjustments used to avoid promotion conflicts)`)
 
     // Check if metadata has changed to avoid infinite loop
+    // Also check for inconsistent state (VAT exists but reverse charge not applied)
+    const hasInconsistentState = isCompanyCheckout && !!vatNumber && !shouldCalculateTax && !metadata.reverse_charge_applies
+    
     const metadataChanged = 
       metadata.reverse_charge_applies !== reverseChargeApplies ||
       metadata.reverse_charge_amount !== reverseChargeAmount ||
-      metadata.should_calculate_tax !== shouldCalculateTax
+      metadata.should_calculate_tax !== shouldCalculateTax ||
+      hasInconsistentState // Force update if state is inconsistent
+    
+    if (hasInconsistentState) {
+      console.log(`⚠️  Detected inconsistent state: VAT=${vatNumber}, shouldCalculateTax=${shouldCalculateTax}, but reverse_charge_applies=${metadata.reverse_charge_applies}. Forcing recalculation.`)
+    }
     
     if (metadataChanged) {
       // Update cart metadata with tax information
@@ -132,7 +144,7 @@ export default async function cartUpdatedHandler({
         }
       })
 
-      console.log(`Cart ${cart.id}: Company=${isCompanyCheckout}, VAT=${vatNumber || 'none'}, ${reverseChargeApplies ? 'REVERSE CHARGE' : 'NORMAL TAX'}, VAT amount: €${(reverseChargeAmount / 100).toFixed(2)}`)
+      console.log(`Cart ${cart.id}: Company=${isCompanyCheckout}, VAT=${vatNumber || 'none'}, ${reverseChargeApplies ? 'REVERSE CHARGE' : 'NORMAL TAX'}, VAT amount: €${reverseChargeAmount.toFixed(2)}`)
       console.log(`   Metadata stored:`, {
         reverse_charge_applies: reverseChargeApplies,
         reverse_charge_amount: reverseChargeAmount,
