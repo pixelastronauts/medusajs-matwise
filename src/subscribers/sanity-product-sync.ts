@@ -6,6 +6,11 @@ export default async function upsertSanityProduct({
   event: { name, data },
   container,
 }: SubscriberArgs<{ id: string; product_id?: string }>) {
+  // Skip automatic sync in development - use manual sync via admin UI instead
+  if (process.env.NODE_ENV !== "production") {
+    return
+  }
+
   let productIds: string[] = []
 
   if (name.includes("variant")) {
