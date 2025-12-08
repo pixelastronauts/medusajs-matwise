@@ -107,3 +107,8 @@ export const SHOULD_DISABLE_ADMIN = process.env.MEDUSA_DISABLE_ADMIN === 'true'
  */
 export const DASHBOARD_API_URL = process.env.DASHBOARD_API_URL || 'http://localhost:8000/api'
 export const DASHBOARD_WEBHOOK_SECRET = process.env.DASHBOARD_WEBHOOK_SECRET
+
+/**
+ * Storefront URL (used for password reset emails, etc.)
+ */
+export const STOREFRONT_URL = process.env.STOREFRONT_URL || 'http://localhost:3000'
