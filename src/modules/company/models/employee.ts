@@ -17,7 +17,7 @@ export const Employee = model.define("employee", {
     mappedBy: "employees",
   }),
   role: model.enum(EmployeeRole).default(EmployeeRole.MEMBER),
-  spending_limit: model.bigNumber().nullable(),
+  spending_limit: model.number().nullable(),
   is_active: model.boolean().default(true),
 });
 

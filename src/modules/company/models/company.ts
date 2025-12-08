@@ -17,6 +17,13 @@ export const Company = model.define("company", {
   country: model.text().nullable(),
   logo_url: model.text().nullable(),
   currency_code: model.text().nullable(),
+  vat_number: model.text().nullable(),
+  vat_validated: model.boolean().default(false),
+  // VAT validation details from registry
+  vat_country_code: model.text().nullable(),
+  vat_company_name: model.text().nullable(),
+  vat_company_address: model.text().nullable(),
+  vat_validated_at: model.dateTime().nullable(),
   spending_limit_reset_frequency: model
     .enum(["never", "daily", "weekly", "monthly", "yearly"])
     .default("monthly"),

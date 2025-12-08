@@ -18,6 +18,12 @@ export interface CreateCompanyInput {
   country?: string;
   logo_url?: string;
   currency_code?: string;
+  vat_number?: string;
+  vat_validated?: boolean;
+  vat_country_code?: string;
+  vat_company_name?: string;
+  vat_company_address?: string;
+  vat_validated_at?: Date;
   spending_limit_reset_frequency?: SpendingLimitResetFrequency;
 }
 
@@ -32,6 +38,12 @@ export interface UpdateCompanyInput {
   country?: string;
   logo_url?: string;
   currency_code?: string;
+  vat_number?: string;
+  vat_validated?: boolean;
+  vat_country_code?: string;
+  vat_company_name?: string;
+  vat_company_address?: string;
+  vat_validated_at?: Date;
   spending_limit_reset_frequency?: SpendingLimitResetFrequency;
 }
 

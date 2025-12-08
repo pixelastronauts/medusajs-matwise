@@ -119,6 +119,55 @@ class CompanyModuleService extends MedusaService({
     });
     return employees.length > 0;
   }
+
+  /**
+   * Find company by VAT number
+   */
+  async findCompanyByVatNumber(vatNumber: string) {
+    const companies = await this.listCompanies({
+      vat_number: vatNumber,
+    });
+    return companies.length > 0 ? companies[0] : null;
+  }
+
+  /**
+   * Find or create a company by VAT number
+   * Used during checkout when customer enters company info
+   */
+  async findOrCreateCompany(data: {
+    name: string;
+    email: string;
+    vat_number?: string;
+    vat_validated?: boolean;
+    address?: string;
+    city?: string;
+    zip?: string;
+    country?: string;
+    currency_code?: string;
+  }) {
+    // If VAT number provided, try to find existing company
+    if (data.vat_number) {
+      const existingCompany = await this.findCompanyByVatNumber(data.vat_number);
+      if (existingCompany) {
+        return { company: existingCompany, created: false };
+      }
+    }
+
+    // Create new company
+    const company = await this.createCompany({
+      name: data.name,
+      email: data.email,
+      vat_number: data.vat_number,
+      vat_validated: data.vat_validated ?? false,
+      address: data.address,
+      city: data.city,
+      zip: data.zip,
+      country: data.country,
+      currency_code: data.currency_code,
+    });
+
+    return { company, created: true };
+  }
 }
 
 export default CompanyModuleService;
