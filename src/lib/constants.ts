@@ -68,9 +68,17 @@ export const MINIO_BUCKET = process.env.MINIO_BUCKET; // Optional, if not set bu
 
 /**
  * (optional) Resend API Key and from Email - do not set if using SendGrid
+ * From email should be in format: "Matfabrik <no-reply@matwi.se>"
  */
 export const RESEND_API_KEY = process.env.RESEND_API_KEY;
-export const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || process.env.RESEND_FROM;
+export const RESEND_FROM_NAME = process.env.RESEND_FROM_NAME || 'Matfabrik';
+export const RESEND_FROM_EMAIL_RAW = process.env.RESEND_FROM_EMAIL || process.env.RESEND_FROM;
+// Construct proper from address with name: "Matfabrik <no-reply@matwi.se>"
+export const RESEND_FROM_EMAIL = RESEND_FROM_EMAIL_RAW 
+  ? (RESEND_FROM_EMAIL_RAW.includes('<') 
+      ? RESEND_FROM_EMAIL_RAW 
+      : `${RESEND_FROM_NAME} <${RESEND_FROM_EMAIL_RAW}>`)
+  : undefined;
 
 /**
  * (optionl) SendGrid API Key and from Email - do not set if using Resend

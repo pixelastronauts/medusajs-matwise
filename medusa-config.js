@@ -69,6 +69,9 @@ const medusaConfig = {
       resolve: './src/modules/pricing-formula'
     },
     {
+      resolve: './src/modules/company'
+    },
+    {
       resolve: './src/modules/invoice-generator'
     },
     {
