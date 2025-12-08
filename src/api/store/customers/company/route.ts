@@ -7,7 +7,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const companyService = req.scope.resolve<CompanyModuleService>(COMPANY_MODULE);
   
   // Get the authenticated customer from the request
-  const customerId = req.auth_context?.actor_id;
+  const customerId = (req as any).auth_context?.actor_id;
 
   if (!customerId) {
     return res.status(401).json({ message: "Unauthorized" });
