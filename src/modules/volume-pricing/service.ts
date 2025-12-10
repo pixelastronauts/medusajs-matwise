@@ -8,6 +8,7 @@ export type VolumePriceTierDTO = {
   max_quantity?: number | null;
   price_per_sqm: number; // in cents
   priority?: number;
+  requires_login?: boolean; // If true, tier is hidden for non-logged-in users
 };
 
 export type VolumePriceListDTO = {
@@ -402,21 +403,23 @@ class VolumePricingModuleService extends MedusaService({
       if (pl.starts_at && new Date(pl.starts_at) > now) return false;
       if (pl.ends_at && new Date(pl.ends_at) < now) return false;
 
-      // If it's a default price list with no customer restrictions, it's eligible
+      // "default" type price lists are ALWAYS eligible (ignore any customer_group_ids)
       if (pl.type === "default") {
-        const hasCustomerRestrictions =
-          (pl.customer_group_ids?.length > 0) || (pl.customer_ids?.length > 0);
-        if (!hasCustomerRestrictions) return true;
-      }
-
-      // Check customer membership for restricted lists
-      const listGroupIds = (pl.customer_group_ids as string[]) || [];
-      const listCustomerIds = (pl.customer_ids as string[]) || [];
-
-      // If no customer filters set, it applies to all
-      if (listGroupIds.length === 0 && listCustomerIds.length === 0) {
         return true;
       }
+
+      // "sale" type with no restrictions applies to all
+      if (pl.type === "sale") {
+        const listGroupIds = (pl.customer_group_ids as string[]) || [];
+        const listCustomerIds = (pl.customer_ids as string[]) || [];
+        if (listGroupIds.length === 0 && listCustomerIds.length === 0) {
+          return true;
+        }
+      }
+
+      // For "customer_group" type, check customer membership
+      const listGroupIds = (pl.customer_group_ids as string[]) || [];
+      const listCustomerIds = (pl.customer_ids as string[]) || [];
 
       // Check if customer matches
       if (options?.customerId && listCustomerIds.includes(options.customerId)) {

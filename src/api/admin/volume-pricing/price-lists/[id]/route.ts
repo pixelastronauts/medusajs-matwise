@@ -72,10 +72,17 @@ const updatePriceList = async (req: MedusaRequest, res: MedusaResponse) => {
     if (status !== undefined) updateData.status = status;
     if (starts_at !== undefined) updateData.starts_at = starts_at ? new Date(starts_at) : null;
     if (ends_at !== undefined) updateData.ends_at = ends_at ? new Date(ends_at) : null;
-    if (customer_group_ids !== undefined) updateData.customer_group_ids = customer_group_ids;
-    if (customer_ids !== undefined) updateData.customer_ids = customer_ids;
     if (priority !== undefined) updateData.priority = priority;
     if (currency_code !== undefined) updateData.currency_code = currency_code;
+
+    // For "default" type, always clear customer groups (they have no effect)
+    if (type === "default") {
+      updateData.customer_group_ids = [];
+      updateData.customer_ids = [];
+    } else {
+      if (customer_group_ids !== undefined) updateData.customer_group_ids = customer_group_ids;
+      if (customer_ids !== undefined) updateData.customer_ids = customer_ids;
+    }
 
     const priceList = await volumePricingService.updatePriceList(id, updateData);
 

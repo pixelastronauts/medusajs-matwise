@@ -85,50 +85,87 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     );
 
     const isLoggedIn = !!customerId;
+    const formulaId = product.metadata?.pricing_formula_id as string | undefined;
+    
+    // Helper function to calculate price for a given pricePerSqm
+    const calculatePriceForTier = async (tierPricePerSqm: number): Promise<number> => {
+      if (formulaId) {
+        try {
+          const formula = await pricingFormulaService.retrieveFormula(formulaId);
+          if (formula && formula.is_active) {
+            return await pricingFormulaService.calculatePrice(
+              formulaId,
+              {
+                width_value: width_cm,
+                length_value: height_cm,
+                price_per_sqm: tierPricePerSqm,
+              },
+              1.0
+            );
+          }
+        } catch (error) {
+          console.error("Formula calculation error:", error);
+        }
+      }
+      // Fallback to simple sqm calculation
+      const sqm = (width_cm * height_cm) / 10000;
+      return tierPricePerSqm * sqm;
+    };
 
     if (tiersResult.tiers.length > 0) {
       priceListId = tiersResult.price_list_id;
       priceListName = tiersResult.price_list_name;
       
-      // Convert tiers to frontend format (price stored in cents, convert to euros)
-      // For tiers that require login, only expose min/max qty (not price)
-      volumePricingTiers = tiersResult.tiers.map((tier: any) => {
-        const requiresLogin = tier.requires_login === true;
-        const isHidden = requiresLogin && !isLoggedIn;
-        
-        // Base tier info - always include quantities
-        const tierData: any = {
-          minQty: tier.min_quantity,
-          maxQty: tier.max_quantity,
-          hidden: isHidden,
-        };
-        
-        // Only include price if not hidden
-        if (!isHidden) {
-          tierData.pricePerSqm = tier.price_per_sqm / 100;
-        }
-        
-        return tierData;
-      });
+      // Convert tiers to frontend format - calculate actual price per item, don't expose sqm price
+      volumePricingTiers = await Promise.all(
+        tiersResult.tiers.map(async (tier: any) => {
+          const requiresLogin = tier.requires_login === true;
+          const isHidden = requiresLogin && !isLoggedIn;
+          const tierPricePerSqm = tier.price_per_sqm / 100; // Convert cents to euros
+          
+          // Base tier info - always include quantities
+          const tierData: any = {
+            minQty: tier.min_quantity,
+            maxQty: tier.max_quantity,
+            hidden: isHidden,
+          };
+          
+          // Calculate and include actual price per item (not sqm price) if not hidden
+          if (!isHidden) {
+            tierData.price = await calculatePriceForTier(tierPricePerSqm);
+          }
+          
+          return tierData;
+        })
+      );
 
       // Find the applicable tier for the current quantity (only from visible tiers)
-      const applicableTier = volumePricingTiers.find((t: any) => {
-        if (t.hidden) return false; // Don't use hidden tiers for pricing
-        if (t.maxQty === null) {
-          return quantity >= t.minQty;
+      const applicableTier = tiersResult.tiers.find((t: any) => {
+        const requiresLogin = t.requires_login === true;
+        if (requiresLogin && !isLoggedIn) return false;
+        if (t.max_quantity === null) {
+          return quantity >= t.min_quantity;
         }
-        return quantity >= t.minQty && quantity <= t.maxQty;
+        return quantity >= t.min_quantity && quantity <= t.max_quantity;
       });
 
       if (applicableTier) {
-        pricePerSqm = applicableTier.pricePerSqm;
+        pricePerSqm = applicableTier.price_per_sqm / 100;
       }
     } else {
       // Fall back to metadata-based volume pricing tiers
       const volumeTiers = (variant.metadata?.volume_pricing_tiers as any[]) || [];
       
       if (volumeTiers.length > 0) {
-        volumePricingTiers = volumeTiers;
+        // Calculate prices for metadata tiers too
+        volumePricingTiers = await Promise.all(
+          volumeTiers.map(async (tier: any) => ({
+            minQty: tier.minQty,
+            maxQty: tier.maxQty,
+            hidden: false,
+            price: await calculatePriceForTier(tier.pricePerSqm),
+          }))
+        );
         
         const tier = volumeTiers.find((t: any) => {
           const minQty = t.minQty || 1;
@@ -147,37 +184,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       }
     }
 
-    // Check if product has a pricing formula
-    const formulaId = product.metadata?.pricing_formula_id as string | undefined;
-    
     let pricePerItem = 0;
 
-    if (formulaId) {
-      // Use formula-based pricing
-      try {
-        const formula = await pricingFormulaService.retrieveFormula(formulaId);
-        
-        if (formula && formula.is_active) {
-          pricePerItem = await pricingFormulaService.calculatePrice(
-            formulaId,
-            {
-              width_value: width_cm,
-              length_value: height_cm,
-              price_per_sqm: pricePerSqm,
-            },
-            1.0 // Volume pricing is already in pricePerSqm
-          );
-        }
-      } catch (error) {
-        console.error("Formula calculation error, falling back to sqm pricing:", error);
-      }
-    }
-
-    // Fallback to sqm-based pricing if no formula or formula failed
-    if (pricePerItem === 0) {
-      const sqm = (width_cm * height_cm) / 10000; // Convert cm² to m²
-      pricePerItem = pricePerSqm * sqm;
-    }
+    // Calculate price for current quantity using the applicable tier's pricePerSqm
+    pricePerItem = await calculatePriceForTier(pricePerSqm);
 
     // Add customization fees
     pricePerItem += customization_fees;

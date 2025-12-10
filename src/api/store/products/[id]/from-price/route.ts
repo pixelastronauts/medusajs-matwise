@@ -61,9 +61,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
     console.log(`[FROM PRICE] Product ${productId}, formula ID:`, formulaId, `customer: ${customerId}, groups: ${customerGroupIds.join(",")}`);
 
-    // Helper function to get price per sqm for a variant
-    const getPricePerSqmForVariant = async (variantId: string, metadataTiers: any[]) => {
-      // Try new module first (quantity 1 = first tier)
+    // Helper function to get price per sqm for a variant (using volume pricing module only)
+    const getPricePerSqmForVariant = async (variantId: string) => {
       const volumePriceResult = await volumePricingService.findApplicablePricePerSqm(
         variantId,
         1,
@@ -78,11 +77,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         return volumePriceResult.price_per_sqm / 100; // Convert from cents
       }
 
-      // Fall back to metadata
-      if (metadataTiers.length > 0) {
-        return metadataTiers[0]?.pricePerSqm || 120.0;
-      }
-
+      // No volume pricing found - use default fallback
       return 120.0;
     };
 
@@ -95,8 +90,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       for (const variant of product.variants || []) {
         if (variant.metadata?.custom === true) continue;
         
-        const metadataTiers = (variant.metadata?.volume_pricing_tiers || []) as any[];
-        const pricePerSqm = await getPricePerSqmForVariant(variant.id, metadataTiers);
+        const pricePerSqm = await getPricePerSqmForVariant(variant.id);
         
         if (pricePerSqm < cheapestPricePerSqm) {
           cheapestPricePerSqm = pricePerSqm;
@@ -124,8 +118,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     for (const variant of product.variants || []) {
       if (variant.metadata?.custom === true) continue;
 
-      const metadataTiers = (variant.metadata?.volume_pricing_tiers || []) as any[];
-      const pricePerSqm = await getPricePerSqmForVariant(variant.id, metadataTiers);
+      const pricePerSqm = await getPricePerSqmForVariant(variant.id);
 
       // Calculate price with formula for this material
       const calculatedPrice = await pricingFormulaService.calculatePrice(

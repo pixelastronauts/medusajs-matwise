@@ -1,6 +1,6 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
-import { Container, Heading, Badge, Text, Select } from "@medusajs/ui"
-import { useState, useEffect } from "react"
+import { Container, Heading, Badge, Text, Select, Button, toast } from "@medusajs/ui"
+import { useState, useEffect, useCallback } from "react"
 
 type VolumePriceTier = {
   id: string
@@ -32,6 +32,8 @@ const VariantTieredPricingWidget = ({ data }: { data: any }) => {
   const [activePriceList, setActivePriceList] = useState<VolumePriceList | null>(null)
   const [selectedPriceListId, setSelectedPriceListId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [hasMetadataTiers, setHasMetadataTiers] = useState(false)
+  const [clearing, setClearing] = useState(false)
 
   // Return null if no variant data
   if (!variant || !variant.id || !variant.product_id) {
@@ -39,30 +41,91 @@ const VariantTieredPricingWidget = ({ data }: { data: any }) => {
   }
 
   // Fetch price lists for this variant
-  useEffect(() => {
-    const fetchPriceLists = async () => {
-      try {
-        setLoading(true)
-        const response = await fetch(`/admin/volume-pricing/variants/${variant.id}`, {
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-        })
+  const fetchPriceLists = useCallback(async () => {
+    try {
+      setLoading(true)
+      const response = await fetch(`/admin/volume-pricing/variants/${variant.id}`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      })
 
-        if (response.ok) {
-          const data = await response.json()
-          setPriceLists(data.price_lists || [])
-          setActivePriceList(data.active_price_list || null)
-          setSelectedPriceListId(data.active_price_list_id || (data.price_lists?.[0]?.id || null))
-        }
-      } catch (error) {
-        console.error("Failed to fetch price lists:", error)
-      } finally {
-        setLoading(false)
+      if (response.ok) {
+        const data = await response.json()
+        setPriceLists(data.price_lists || [])
+        setActivePriceList(data.active_price_list || null)
+        setSelectedPriceListId(data.active_price_list_id || (data.price_lists?.[0]?.id || null))
       }
-    }
 
+      // Also check if variant has metadata tiers
+      const variantResponse = await fetch(`/admin/products/${variant.product_id}/variants/${variant.id}`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      })
+      if (variantResponse.ok) {
+        const variantData = await variantResponse.json()
+        const metaTiers = variantData.variant?.metadata?.volume_pricing_tiers
+        setHasMetadataTiers(Array.isArray(metaTiers) && metaTiers.length > 0)
+      }
+    } catch (error) {
+      console.error("Failed to fetch price lists:", error)
+    } finally {
+      setLoading(false)
+    }
+  }, [variant.id, variant.product_id])
+
+  useEffect(() => {
     fetchPriceLists()
-  }, [variant.id])
+  }, [fetchPriceLists])
+
+  // Clear all price list links
+  const handleClearLinks = async () => {
+    if (!confirm(`Remove this variant from all ${priceLists.length} price list(s)?`)) return
+    
+    setClearing(true)
+    try {
+      const response = await fetch(`/admin/volume-pricing/variants/${variant.id}/clear-links`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+      const data = await response.json()
+      
+      if (data.success) {
+        toast.success(`Removed ${data.removed_count} price list link(s)`)
+        fetchPriceLists()
+      } else {
+        toast.error(data.message || "Failed to clear links")
+      }
+    } catch (error) {
+      toast.error("Failed to clear links")
+    } finally {
+      setClearing(false)
+    }
+  }
+
+  // Clear metadata tiers
+  const handleClearMetadata = async () => {
+    if (!confirm("Remove legacy volume_pricing_tiers from variant metadata?")) return
+    
+    setClearing(true)
+    try {
+      const response = await fetch(`/admin/volume-pricing/variants/${variant.id}/clear-metadata`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+      const data = await response.json()
+      
+      if (data.success) {
+        toast.success("Cleared legacy metadata tiers")
+        setHasMetadataTiers(false)
+      } else {
+        toast.error(data.message || "Failed to clear metadata")
+      }
+    } catch (error) {
+      toast.error("Failed to clear metadata")
+    } finally {
+      setClearing(false)
+    }
+  }
 
   // Get the currently selected price list
   const displayedPriceList = priceLists.find(pl => pl.id === selectedPriceListId) || activePriceList || priceLists[0]
@@ -117,21 +180,55 @@ const VariantTieredPricingWidget = ({ data }: { data: any }) => {
               : "Set up volume discounts to encourage bulk purchases and increase order sizes."}
           </Text>
         </div>
-        <a href={pricingUrl}>
-          <button 
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background border border-input hover:bg-accent hover:text-accent-foreground h-8 px-3"
-          >
-            {hasTieredPricing ? "Edit Tiers" : "Set Up Pricing"}
-          </button>
-        </a>
+        <div className="flex items-center gap-2">
+          <a href={pricingUrl}>
+            <button 
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background border border-input hover:bg-accent hover:text-accent-foreground h-8 px-3"
+            >
+              {hasTieredPricing ? "Edit Tiers" : "Set Up Pricing"}
+            </button>
+          </a>
+        </div>
       </div>
+
+      {/* Warning: Legacy metadata tiers exist */}
+      {hasMetadataTiers && (
+        <div className="mb-3 p-3 bg-yellow-50 border border-yellow-300 rounded-lg">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <Text className="text-sm font-medium text-yellow-800">
+                ⚠️ Legacy Metadata Tiers Found
+              </Text>
+              <Text className="text-xs text-yellow-700 mt-1">
+                This variant has old volume_pricing_tiers in its metadata. These will be used as a fallback if no price lists apply.
+              </Text>
+            </div>
+            <button
+              onClick={handleClearMetadata}
+              disabled={clearing}
+              className="shrink-0 px-2 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded disabled:opacity-50"
+            >
+              {clearing ? "..." : "Clear"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Price List Selector */}
       {priceLists.length > 0 && (
         <div className="mb-3">
-          <Text className="text-xs font-semibold text-gray-700 uppercase mb-2">
-            Attached Price Lists ({priceLists.length})
-          </Text>
+          <div className="flex items-center justify-between mb-2">
+            <Text className="text-xs font-semibold text-gray-700 uppercase">
+              Attached Price Lists ({priceLists.length})
+            </Text>
+            <button
+              onClick={handleClearLinks}
+              disabled={clearing}
+              className="text-xs text-red-600 hover:text-red-800 hover:underline disabled:opacity-50"
+            >
+              {clearing ? "Clearing..." : "Clear All Links"}
+            </button>
+          </div>
           
           {priceLists.length > 1 ? (
             <select

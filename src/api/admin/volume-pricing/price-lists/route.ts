@@ -78,15 +78,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   try {
+    const priceListType = type || "default";
+    
     const priceList = await volumePricingService.createPriceList({
       name,
       description: description || null,
-      type: type || "default",
+      type: priceListType,
       status: status || "draft",
       starts_at: starts_at ? new Date(starts_at) : null,
       ends_at: ends_at ? new Date(ends_at) : null,
-      customer_group_ids: customer_group_ids || [],
-      customer_ids: customer_ids || [],
+      // For "default" type, ignore customer groups (they have no effect)
+      customer_group_ids: priceListType === "default" ? [] : (customer_group_ids || []),
+      customer_ids: priceListType === "default" ? [] : (customer_ids || []),
       priority: priority || 0,
       currency_code: currency_code || "eur",
       tiers: tiers?.map((t) => ({

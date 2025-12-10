@@ -188,41 +188,20 @@ export const PUT = async (
             
             const sqm = (width * height) / 10000;
             
-            // Try new volume pricing module first, then fall back to metadata
+            // Use volume pricing module only
             const volumePricingResult = await volumePricingService.getTiersForVariant(baseVariant.id);
-            const newModuleTiers = volumePricingResult.tiers;
-            const metadataTiers = baseVariant.metadata?.volume_pricing_tiers as any[] | undefined;
+            const moduleTiers = volumePricingResult.tiers;
             
-            const hasNewModuleTiers = newModuleTiers && newModuleTiers.length > 0;
-            const hasMetadataTiers = metadataTiers && Array.isArray(metadataTiers) && metadataTiers.length > 0;
+            console.log(`📦 Volume pricing: Module tiers=${moduleTiers?.length || 0}`);
             
-            console.log(`📦 Volume pricing: Module tiers=${hasNewModuleTiers ? newModuleTiers.length : 0}, Metadata tiers=${hasMetadataTiers ? metadataTiers!.length : 0}`);
-            
-            if (hasNewModuleTiers || hasMetadataTiers) {
+            if (moduleTiers && moduleTiers.length > 0) {
                 calculatedPrices = await Promise.all(prices.map(async (price: any) => {
-                    let pricePerSqm: number | null = null;
+                    const matchingTier = moduleTiers.find((t: any) => 
+                        t.min_quantity === price.min_quantity && 
+                        (t.max_quantity === price.max_quantity || (t.max_quantity === null && (!price.max_quantity || price.max_quantity === null)))
+                    );
                     
-                    // Try new module first
-                    if (hasNewModuleTiers) {
-                        const matchingTier = newModuleTiers.find((t: any) => 
-                            t.min_quantity === price.min_quantity && 
-                            (t.max_quantity === price.max_quantity || (t.max_quantity === null && (!price.max_quantity || price.max_quantity === null)))
-                        );
-                        if (matchingTier) {
-                            pricePerSqm = matchingTier.price_per_sqm_display; // Already in euros
-                        }
-                    }
-                    
-                    // Fall back to metadata if not found in new module
-                    if (pricePerSqm === null && hasMetadataTiers) {
-                        const matchingTier = metadataTiers!.find((t: any) => 
-                            t.minQty === price.min_quantity && 
-                            (t.maxQty === price.max_quantity || (t.maxQty === null && (!price.max_quantity || price.max_quantity === null)))
-                        );
-                        if (matchingTier) {
-                            pricePerSqm = matchingTier.pricePerSqm;
-                        }
-                    }
+                    const pricePerSqm = matchingTier ? matchingTier.price_per_sqm_display : null; // Already in euros
                     
                     if (pricePerSqm !== null) {
                         let calculatedAmount = 0;
