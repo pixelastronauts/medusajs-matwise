@@ -18,7 +18,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const productId = req.params.id;
 
   // Get authenticated customer ID
-  const customerId = req.auth_context?.actor_id;
+  const customerId = (req as any).auth_context?.actor_id;
 
   try {
     const productModuleService = req.scope.resolve(Modules.PRODUCT);

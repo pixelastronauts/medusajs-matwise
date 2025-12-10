@@ -18,18 +18,30 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     let tiers: any[];
 
     if (variant_ids) {
-      // Multiple variants
+      // Multiple variants - get tiers for each variant
       const ids = variant_ids.split(",");
-      tiers = await volumePricingService.getTiersForVariants(
-        ids,
-        price_list_id === "null" ? null : price_list_id
-      );
+      const priceListId = price_list_id === "null" ? null : price_list_id;
+      const allTiers: any[] = [];
+      
+      for (const variantId of ids) {
+        if (priceListId) {
+          const variantTiers = await volumePricingService.getTiersForPriceListAndVariant(priceListId, variantId);
+          allTiers.push(...variantTiers);
+        } else {
+          const result = await volumePricingService.getTiersForVariant(variantId);
+          allTiers.push(...result.tiers);
+        }
+      }
+      tiers = allTiers;
     } else if (variant_id) {
       // Single variant
-      tiers = await volumePricingService.getTiersForVariant(
-        variant_id,
-        price_list_id === "null" ? null : price_list_id
-      );
+      const priceListId = price_list_id === "null" ? null : price_list_id;
+      if (priceListId) {
+        tiers = await volumePricingService.getTiersForPriceListAndVariant(priceListId, variant_id);
+      } else {
+        const result = await volumePricingService.getTiersForVariant(variant_id);
+        tiers = result.tiers;
+      }
     } else {
       // All tiers
       const filters: any = {};
@@ -84,14 +96,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   try {
-    const tier = await volumePricingService.createTier({
-      variant_id,
+    // Create the tier using the base service method
+    const tier = await volumePricingService.createVolumePriceTiers({
       price_list_id: price_list_id || null,
       min_quantity: min_quantity || 1,
       max_quantity: max_quantity ?? null,
       price_per_sqm: Math.round(price_per_sqm * 100), // Convert to cents
-      currency_code: currency_code || "eur",
     });
+
+    // If variant_id provided, link it to a price list
+    // Note: In the new architecture, tiers belong to price lists, not directly to variants
+    // Variants are linked to price lists via VolumePriceListVariant
 
     res.status(201).json({
       tier: {

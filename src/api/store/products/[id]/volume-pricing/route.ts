@@ -17,7 +17,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   try {
     // Get authenticated customer and their groups (if logged in)
-    const customerId = req.auth_context?.actor_id;
+    const customerId = (req as any).auth_context?.actor_id;
     let customerGroupIds: string[] = [];
 
     if (customerId) {

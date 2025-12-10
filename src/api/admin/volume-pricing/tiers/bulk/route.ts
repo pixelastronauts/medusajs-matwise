@@ -30,28 +30,64 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   try {
-    const results = await volumePricingService.bulkSetTiers(
-      data.map((item) => ({
-        variant_id: item.variant_id,
-        tiers: item.tiers.map((tier) => ({
-          min_quantity: tier.min_quantity,
-          max_quantity: tier.max_quantity ?? null,
-          price_per_sqm: Math.round(tier.price_per_sqm * 100), // Convert euros to cents
-          currency_code: "eur",
-        })),
-      })),
-      price_list_id ?? null
-    );
+    const results: { variant_id: string; tiers: any[] }[] = [];
+
+    // Process each variant's tiers
+    for (const item of data) {
+      // If price_list_id is provided, set tiers for that price list
+      // Otherwise, get or create a default price list for the variant
+      if (price_list_id) {
+        // Ensure variant is linked to the price list
+        await volumePricingService.attachVariantsToPriceList(price_list_id, [item.variant_id]);
+        
+        // Set tiers for the price list
+        const tiers = await volumePricingService.setTiersForPriceList(
+          price_list_id,
+          item.tiers.map((tier) => ({
+            min_quantity: tier.min_quantity,
+            max_quantity: tier.max_quantity ?? null,
+            price_per_sqm: Math.round(tier.price_per_sqm * 100), // Convert euros to cents
+          }))
+        );
+
+        results.push({
+          variant_id: item.variant_id,
+          tiers: Array.isArray(tiers) ? tiers : [],
+        });
+      } else {
+        // Create a new price list for this variant
+        const priceList = await volumePricingService.createPriceList({
+          name: `Variant Pricing (${item.variant_id.slice(-6)})`,
+          description: "Auto-created from bulk set",
+          type: "default",
+          status: "active",
+          tiers: item.tiers.map((tier) => ({
+            min_quantity: tier.min_quantity,
+            max_quantity: tier.max_quantity ?? null,
+            price_per_sqm: Math.round(tier.price_per_sqm * 100),
+          })),
+        });
+
+        // Link variant to price list
+        await volumePricingService.attachVariantsToPriceList(priceList.id, [item.variant_id]);
+
+        // Get the created tiers
+        const tiers = await volumePricingService.getTiersForPriceList(priceList.id);
+
+        results.push({
+          variant_id: item.variant_id,
+          tiers: Array.isArray(tiers) ? tiers : [],
+        });
+      }
+    }
 
     res.json({
       results: results.map((r) => ({
         variant_id: r.variant_id,
-        tiers: Array.isArray(r.tiers)
-          ? r.tiers.map((t: any) => ({
-              ...t,
-              price_per_sqm_display: Number(t.price_per_sqm) / 100,
-            }))
-          : [],
+        tiers: r.tiers.map((t: any) => ({
+          ...t,
+          price_per_sqm_display: Number(t.price_per_sqm) / 100,
+        })),
       })),
     });
   } catch (error: any) {

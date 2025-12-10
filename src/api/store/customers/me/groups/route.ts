@@ -10,7 +10,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const customerModuleService = req.scope.resolve(Modules.CUSTOMER);
 
   // Get the authenticated customer ID from the request
-  const customerId = req.auth_context?.actor_id;
+  const customerId = (req as any).auth_context?.actor_id;
 
   if (!customerId) {
     return res.status(401).json({ message: "Not authenticated" });

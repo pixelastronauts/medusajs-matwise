@@ -37,12 +37,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const duplicate = await volumePricingService.createPriceList({
       name: duplicateName,
       description: original.description,
-      type: original.type,
+      type: (original.type as "default" | "customer_group" | "sale") || "default",
       status: "draft", // Always create as draft
       starts_at: original.starts_at,
       ends_at: original.ends_at,
-      customer_group_ids: original.customer_group_ids || [],
-      customer_ids: original.customer_ids || [],
+      customer_group_ids: Array.isArray(original.customer_group_ids) ? original.customer_group_ids as string[] : [],
+      customer_ids: Array.isArray(original.customer_ids) ? original.customer_ids as string[] : [],
       priority: original.priority,
       currency_code: original.currency_code,
       tiers: original.tiers?.map((tier: any) => ({

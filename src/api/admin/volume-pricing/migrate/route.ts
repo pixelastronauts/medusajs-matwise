@@ -48,16 +48,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         }
 
         // Check if already migrated
-        const existingTiers = await volumePricingService.getTiersForVariant(variant.id, null);
+        const existingTiersResult = await volumePricingService.getTiersForVariant(variant.id);
         
-        if (existingTiers.length > 0) {
+        if (existingTiersResult.tiers.length > 0) {
           migrationResults.push({
             variant_id: variant.id,
             variant_title: variant.title,
             product_title: product.title,
             status: "skipped",
             reason: "Already has tiers in new module",
-            existing_tier_count: existingTiers.length,
+            existing_tier_count: existingTiersResult.tiers.length,
           });
           totalSkipped++;
           continue;
@@ -128,15 +128,15 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     for (const product of products) {
       for (const variant of product.variants || []) {
         const volumeTiers = variant.metadata?.volume_pricing_tiers as any[] | undefined;
-        const existingTiers = await volumePricingService.getTiersForVariant(variant.id, null);
+        const existingTiersResult = await volumePricingService.getTiersForVariant(variant.id);
 
-        if (existingTiers.length > 0) {
+        if (existingTiersResult.tiers.length > 0) {
           status.push({
             variant_id: variant.id,
             variant_title: variant.title,
             product_title: product.title,
             status: "migrated",
-            new_module_tier_count: existingTiers.length,
+            new_module_tier_count: existingTiersResult.tiers.length,
             metadata_tier_count: volumeTiers?.length || 0,
           });
           alreadyMigrated++;

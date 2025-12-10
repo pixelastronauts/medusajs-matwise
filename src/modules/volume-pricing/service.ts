@@ -37,7 +37,8 @@ class VolumePricingModuleService extends MedusaService({
   async createPriceList(data: VolumePriceListDTO & { tiers?: Omit<VolumePriceTierDTO, "price_list_id">[] }) {
     const { tiers, ...listData } = data;
     
-    const priceList = await this.createVolumePriceLists({
+    // Cast to any to work around MedusaService generated type constraints
+    const priceList = await (this.createVolumePriceLists as any)({
       ...listData,
       type: listData.type || "default",
       status: listData.status || "draft",
@@ -65,7 +66,8 @@ class VolumePricingModuleService extends MedusaService({
    * Update a price list
    */
   async updatePriceList(id: string, data: Partial<VolumePriceListDTO>) {
-    return await this.updateVolumePriceLists({ id, ...data });
+    // Cast to any to work around MedusaService generated type constraints
+    return await (this.updateVolumePriceLists as any)({ id, ...data });
   }
 
   /**

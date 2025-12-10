@@ -33,10 +33,10 @@ const VolumePriceList = model.define("volume_price_list", {
   ends_at: model.dateTime().nullable(),
   
   // Customer group IDs (JSON array) - customers in these groups get this pricing
-  customer_group_ids: model.json().default([]),
+  customer_group_ids: model.json().default({} as Record<string, unknown>),
   
   // Specific customer IDs (JSON array) - specific customers get this pricing
-  customer_ids: model.json().default([]),
+  customer_ids: model.json().default({} as Record<string, unknown>),
   
   // Priority (higher = takes precedence)
   priority: model.number().default(0),

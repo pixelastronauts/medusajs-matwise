@@ -29,7 +29,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const variant_ids = query.variant_ids?.split(",") || [];
 
   // Get authenticated customer ID
-  const customerId = req.auth_context?.actor_id;
+  const customerId = (req as any).auth_context?.actor_id;
 
   // Generate cache key (include customer ID for customer-specific caching)
   const cacheKey = `${productId}:${width_cm}:${height_cm}:${quantity}:${variant_ids.sort().join(",")}:${customerId || "anon"}`;

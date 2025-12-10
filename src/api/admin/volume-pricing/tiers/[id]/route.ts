@@ -59,7 +59,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     if (currency_code !== undefined) updateData.currency_code = currency_code;
     if (priority !== undefined) updateData.priority = priority;
 
-    const tier = await volumePricingService.updateTier(id, updateData);
+    const tier = await volumePricingService.updateVolumePriceTiers({ id, ...updateData });
 
     res.json({
       tier: {
@@ -82,7 +82,7 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params;
 
   try {
-    await volumePricingService.deleteTier(id);
+    await volumePricingService.deleteVolumePriceTiers(id);
     res.status(200).json({ success: true });
   } catch (error: any) {
     console.error("Error deleting volume price tier:", error);
