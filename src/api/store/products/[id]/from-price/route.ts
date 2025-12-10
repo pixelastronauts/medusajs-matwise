@@ -1,5 +1,6 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { Modules } from "@medusajs/framework/utils";
+import { VOLUME_PRICING_MODULE, type VolumePricingService } from "../../../../../modules/volume-pricing";
 
 // Heavy caching for "from price" - rarely changes
 const fromPriceCache = new Map<string, { price: number; timestamp: number }>();
@@ -12,23 +13,45 @@ export const OPTIONS = async (req: MedusaRequest, res: MedusaResponse) => {
 
 // GET /store/products/:id/from-price
 // Get the "from price" for a product (minimum dimensions, cheapest material)
-// Heavily cached for SEO and performance
+// Uses authenticated customer for customer-specific pricing
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const productId = req.params.id;
 
-  // Check cache first
-  const cached = fromPriceCache.get(productId);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return res.json({
-      from_price: cached.price,
-      cached: true,
-      dimensions: { width_cm: 30, height_cm: 30, sqm: 0.09 },
-    });
-  }
+  // Get authenticated customer ID
+  const customerId = req.auth_context?.actor_id;
 
   try {
     const productModuleService = req.scope.resolve(Modules.PRODUCT);
+    const customerModuleService = req.scope.resolve(Modules.CUSTOMER);
     const pricingFormulaService = req.scope.resolve("pricingFormulaModuleService") as any;
+    const volumePricingService = req.scope.resolve(VOLUME_PRICING_MODULE) as VolumePricingService;
+
+    // Get customer's groups if authenticated
+    let customerGroupIds: string[] = [];
+    if (customerId) {
+      try {
+        const customerGroups = await customerModuleService.listCustomerGroups({
+          customers: customerId,
+        });
+        customerGroupIds = customerGroups.map((g: any) => g.id);
+      } catch {
+        // Ignore errors fetching groups
+      }
+    }
+
+    // Cache key based on customer groups (customers in same groups get same price)
+    const groupsKey = customerGroupIds.length > 0 ? customerGroupIds.sort().join(",") : "default";
+    const cacheKey = `${productId}:${groupsKey}`;
+
+    // Check cache first
+    const cached = fromPriceCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return res.json({
+        from_price: cached.price,
+        cached: true,
+        dimensions: { width_cm: 30, height_cm: 30, sqm: 0.09 },
+      });
+    }
 
     // Retrieve product with variants
     const product = await productModuleService.retrieveProduct(productId, {
@@ -38,7 +61,32 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
     const formulaId = product.metadata?.pricing_formula_id as string | undefined;
 
-    console.log(`[FROM PRICE] Product ${productId}, formula ID:`, formulaId);
+    console.log(`[FROM PRICE] Product ${productId}, formula ID:`, formulaId, `customer: ${customerId}, groups: ${customerGroupIds.join(",")}`);
+
+    // Helper function to get price per sqm for a variant
+    const getPricePerSqmForVariant = async (variantId: string, metadataTiers: any[]) => {
+      // Try new module first (quantity 1 = first tier)
+      const volumePriceResult = await volumePricingService.findApplicablePricePerSqm(
+        variantId,
+        1,
+        { 
+          customerId: customerId,
+          customerGroupIds: customerGroupIds,
+          currencyCode: "eur" 
+        }
+      );
+
+      if (volumePriceResult) {
+        return volumePriceResult.price_per_sqm / 100; // Convert from cents
+      }
+
+      // Fall back to metadata
+      if (metadataTiers.length > 0) {
+        return metadataTiers[0]?.pricePerSqm || 120.0;
+      }
+
+      return 120.0;
+    };
 
     if (!formulaId) {
       console.log("[FROM PRICE] No formula found, using simple sqm calculation");
@@ -49,12 +97,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       for (const variant of product.variants || []) {
         if (variant.metadata?.custom === true) continue;
         
-        const volumePricingTiers = (variant.metadata?.volume_pricing_tiers || []) as any[];
-        if (volumePricingTiers.length > 0) {
-          const firstTier = volumePricingTiers[0] as any;
-          if (firstTier.pricePerSqm < cheapestPricePerSqm) {
-            cheapestPricePerSqm = firstTier.pricePerSqm;
-          }
+        const metadataTiers = (variant.metadata?.volume_pricing_tiers || []) as any[];
+        const pricePerSqm = await getPricePerSqmForVariant(variant.id, metadataTiers);
+        
+        if (pricePerSqm < cheapestPricePerSqm) {
+          cheapestPricePerSqm = pricePerSqm;
         }
       }
 
@@ -62,7 +109,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       const fromPrice = Math.floor(minSqm * cheapestPricePerSqm);
 
       // Cache the result
-      fromPriceCache.set(productId, {
+      fromPriceCache.set(cacheKey, {
         price: fromPrice,
         timestamp: Date.now(),
       });
@@ -83,28 +130,25 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     for (const variant of product.variants || []) {
       if (variant.metadata?.custom === true) continue;
 
-      const volumePricingTiers = (variant.metadata?.volume_pricing_tiers || []) as any[];
-      if (volumePricingTiers.length > 0) {
-        const firstTier = volumePricingTiers[0] as any;
-        const pricePerSqm = firstTier.pricePerSqm || 120.0;
+      const metadataTiers = (variant.metadata?.volume_pricing_tiers || []) as any[];
+      const pricePerSqm = await getPricePerSqmForVariant(variant.id, metadataTiers);
 
-        // Calculate price with formula for this material
-        const calculatedPrice = await pricingFormulaService.calculatePrice(
-          formulaId,
-          {
-            width_value: 30,
-            length_value: 30,
-            price_per_sqm: pricePerSqm,
-          }
-        );
-
-        console.log(`[FROM PRICE] Variant ${variant.id}, price_per_sqm: ${pricePerSqm}, calculated: ${calculatedPrice}`);
-
-        if (calculatedPrice < cheapestPrice) {
-          cheapestPrice = calculatedPrice;
-          cheapestVariantId = variant.id;
-          cheapestPricePerSqm = pricePerSqm;
+      // Calculate price with formula for this material
+      const calculatedPrice = await pricingFormulaService.calculatePrice(
+        formulaId,
+        {
+          width_value: 30,
+          length_value: 30,
+          price_per_sqm: pricePerSqm,
         }
+      );
+
+      console.log(`[FROM PRICE] Variant ${variant.id}, price_per_sqm: ${pricePerSqm}, calculated: ${calculatedPrice}`);
+
+      if (calculatedPrice < cheapestPrice) {
+        cheapestPrice = calculatedPrice;
+        cheapestVariantId = variant.id;
+        cheapestPricePerSqm = pricePerSqm;
       }
     }
 
@@ -113,7 +157,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const fromPrice = cheapestPrice !== Infinity ? cheapestPrice : Math.floor(0.09 * 120.0);
 
     // Cache the result
-    fromPriceCache.set(productId, {
+    fromPriceCache.set(cacheKey, {
       price: fromPrice,
       timestamp: Date.now(),
     });

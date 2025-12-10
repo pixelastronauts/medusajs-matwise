@@ -27,9 +27,42 @@ class PricingFormulaModuleService extends MedusaService({
       formula_string?: string;
       parameters?: Record<string, number>;
       is_active?: boolean;
+      is_default?: boolean;
     }
   ) {
+    // If setting as default, clear other defaults first
+    if (data.is_default === true) {
+      await this.clearDefaultFormulas();
+    }
     return await this.updatePricingFormulas({ id, ...data });
+  }
+
+  /**
+   * Set a formula as the default (clears other defaults)
+   */
+  async setDefaultFormula(id: string) {
+    // Clear all existing defaults
+    await this.clearDefaultFormulas();
+    // Set this one as default
+    return await this.updatePricingFormulas({ id, is_default: true });
+  }
+
+  /**
+   * Clear all default formulas
+   */
+  async clearDefaultFormulas() {
+    const defaults = await this.listPricingFormulas({ is_default: true });
+    for (const formula of defaults) {
+      await this.updatePricingFormulas({ id: formula.id, is_default: false });
+    }
+  }
+
+  /**
+   * Get the default formula
+   */
+  async getDefaultFormula() {
+    const defaults = await this.listPricingFormulas({ is_default: true });
+    return defaults.length > 0 ? defaults[0] : null;
   }
 
   /**

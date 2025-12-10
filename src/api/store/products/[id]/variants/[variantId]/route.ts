@@ -2,6 +2,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import { updateProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
 import { PRICING_FORMULA_MODULE, type PricingFormulaService } from "../../../../../../modules/pricing-formula"
+import { VOLUME_PRICING_MODULE, type VolumePricingService } from "../../../../../../modules/volume-pricing"
 
 // GET /store/products/:id/variants/:variantId
 // Retrieve a custom variant
@@ -101,8 +102,9 @@ export const PUT = async (
         }
     }
 
-    // Resolve pricing formula service
+    // Resolve pricing services
     const pricingFormulaService = req.scope.resolve(PRICING_FORMULA_MODULE) as PricingFormulaService;
+    const volumePricingService = req.scope.resolve(VOLUME_PRICING_MODULE) as VolumePricingService;
     const formulaId = product.metadata?.pricing_formula_id as string | undefined;
 
     console.log('🔄 Updating variant:', variantId);
@@ -186,16 +188,43 @@ export const PUT = async (
             
             const sqm = (width * height) / 10000;
             
-            if (baseVariant.metadata?.volume_pricing_tiers) {
-                const tiers = baseVariant.metadata.volume_pricing_tiers as any[];
-                
+            // Try new volume pricing module first, then fall back to metadata
+            const volumePricingResult = await volumePricingService.getTiersForVariant(baseVariant.id);
+            const newModuleTiers = volumePricingResult.tiers;
+            const metadataTiers = baseVariant.metadata?.volume_pricing_tiers as any[] | undefined;
+            
+            const hasNewModuleTiers = newModuleTiers && newModuleTiers.length > 0;
+            const hasMetadataTiers = metadataTiers && Array.isArray(metadataTiers) && metadataTiers.length > 0;
+            
+            console.log(`📦 Volume pricing: Module tiers=${hasNewModuleTiers ? newModuleTiers.length : 0}, Metadata tiers=${hasMetadataTiers ? metadataTiers!.length : 0}`);
+            
+            if (hasNewModuleTiers || hasMetadataTiers) {
                 calculatedPrices = await Promise.all(prices.map(async (price: any) => {
-                    const tier = tiers.find((t: any) => 
-                        t.minQty === price.min_quantity && 
-                        (t.maxQty === price.max_quantity || (t.maxQty === null && (!price.max_quantity || price.max_quantity === null)))
-                    );
+                    let pricePerSqm: number | null = null;
                     
-                    if (tier) {
+                    // Try new module first
+                    if (hasNewModuleTiers) {
+                        const matchingTier = newModuleTiers.find((t: any) => 
+                            t.min_quantity === price.min_quantity && 
+                            (t.max_quantity === price.max_quantity || (t.max_quantity === null && (!price.max_quantity || price.max_quantity === null)))
+                        );
+                        if (matchingTier) {
+                            pricePerSqm = matchingTier.price_per_sqm_display; // Already in euros
+                        }
+                    }
+                    
+                    // Fall back to metadata if not found in new module
+                    if (pricePerSqm === null && hasMetadataTiers) {
+                        const matchingTier = metadataTiers!.find((t: any) => 
+                            t.minQty === price.min_quantity && 
+                            (t.maxQty === price.max_quantity || (t.maxQty === null && (!price.max_quantity || price.max_quantity === null)))
+                        );
+                        if (matchingTier) {
+                            pricePerSqm = matchingTier.pricePerSqm;
+                        }
+                    }
+                    
+                    if (pricePerSqm !== null) {
                         let calculatedAmount = 0;
                         if (formulaId) {
                             try {
@@ -204,16 +233,16 @@ export const PUT = async (
                                     {
                                         width_value: width,
                                         length_value: height,
-                                        price_per_sqm: tier.pricePerSqm,
+                                        price_per_sqm: pricePerSqm,
                                     },
                                     1.0
                                 );
                                 calculatedAmount = formulaPrice + customizationFee;
                             } catch (error) {
-                                calculatedAmount = tier.pricePerSqm * sqm + customizationFee;
+                                calculatedAmount = pricePerSqm * sqm + customizationFee;
                             }
                         } else {
-                            calculatedAmount = tier.pricePerSqm * sqm + customizationFee;
+                            calculatedAmount = pricePerSqm * sqm + customizationFee;
                         }
                         
                         calculatedAmount = Math.round(calculatedAmount * 100) / 100;

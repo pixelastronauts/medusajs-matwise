@@ -15,6 +15,7 @@ type PricingFormula = {
   formula_string: string
   parameters: Record<string, number>
   is_active: boolean
+  is_default: boolean
 }
 
 const EditPricingFormulaPage = () => {
@@ -25,6 +26,7 @@ const EditPricingFormulaPage = () => {
   const [description, setDescription] = useState("")
   const [formulaString, setFormulaString] = useState("")
   const [isActive, setIsActive] = useState(true)
+  const [isDefault, setIsDefault] = useState(false)
   const [parameters, setParameters] = useState<Parameter[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -64,6 +66,7 @@ const EditPricingFormulaPage = () => {
       setDescription(formula.description || "")
       setFormulaString(formula.formula_string)
       setIsActive(formula.is_active)
+      setIsDefault(formula.is_default || false)
       
       // Convert parameters object to array
       const paramArray = Object.entries(formula.parameters).map(([key, value]) => ({
@@ -155,6 +158,7 @@ const EditPricingFormulaPage = () => {
           formula_string: formulaString,
           parameters: parametersObj,
           is_active: isActive,
+          is_default: isDefault,
         }),
       })
 
@@ -253,12 +257,22 @@ const EditPricingFormulaPage = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={isActive}
-            onCheckedChange={setIsActive}
-          />
-          <Label>Active</Label>
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={isActive}
+              onCheckedChange={setIsActive}
+            />
+            <Label>Active</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={isDefault}
+              onCheckedChange={setIsDefault}
+            />
+            <Label>Default Formula</Label>
+            {isDefault && <span className="text-yellow-600">★</span>}
+          </div>
         </div>
 
         <div>

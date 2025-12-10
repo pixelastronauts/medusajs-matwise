@@ -7,6 +7,7 @@ const PricingFormula = model.define("pricing_formula", {
   formula_string: model.text(),
   parameters: model.json(), // Store formula parameters as JSON
   is_active: model.boolean().default(true),
+  is_default: model.boolean().default(false), // Only one formula should be default
   // created_at, updated_at, and deleted_at are automatically added by MedusaJS
 });
 

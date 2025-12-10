@@ -11,6 +11,7 @@ type PricingFormula = {
   formula_string: string
   parameters: Record<string, number>
   is_active: boolean
+  is_default: boolean
   created_at: string
   updated_at: string
 }
@@ -126,7 +127,12 @@ const PricingFormulasPage = () => {
             {formulas.map((formula) => (
               <Table.Row key={formula.id}>
                 <Table.Cell>
-                  <div className="font-medium">{formula.name}</div>
+                  <div className="font-medium flex items-center gap-2">
+                    {formula.name}
+                    {formula.is_default && (
+                      <span className="text-yellow-600" title="Default Formula">★</span>
+                    )}
+                  </div>
                   <div className="text-xs text-gray-500 font-mono mt-1">
                     {formula.formula_string.length > 50
                       ? formula.formula_string.substring(0, 50) + "..."

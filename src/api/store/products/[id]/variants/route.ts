@@ -2,6 +2,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import { createProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
 import { PRICING_FORMULA_MODULE, type PricingFormulaService } from "../../../../../modules/pricing-formula"
+import { VOLUME_PRICING_MODULE, type VolumePricingService } from "../../../../../modules/volume-pricing"
 
 // POST /store/products/:id/variants
 // Create a custom variant for a product (e.g. for custom doormats)
@@ -50,6 +51,7 @@ export const POST = async (
     
     // Resolve pricing formula service for formula-based calculations
     const pricingFormulaService = req.scope.resolve(PRICING_FORMULA_MODULE) as PricingFormulaService;
+    const volumePricingService = req.scope.resolve(VOLUME_PRICING_MODULE) as VolumePricingService;
     const formulaId = product.metadata?.pricing_formula_id as string | undefined;
 
     if (!product) {
@@ -123,17 +125,43 @@ export const POST = async (
         console.log(`📏 Dimensions: ${width}x${height}cm (${sqm.toFixed(4)} m²) | Fee: €${customizationFee}`);
 
         // 3. Recalculate each price tier using the pricing formula
-        if (baseVariant.metadata?.volume_pricing_tiers) {
-            const tiers = baseVariant.metadata.volume_pricing_tiers as any[];
-            
+        // First try new volume pricing module, then fall back to metadata
+        const volumePricingResult = await volumePricingService.getTiersForVariant(baseVariant.id);
+        const newModuleTiers = volumePricingResult.tiers;
+        const metadataTiers = baseVariant.metadata?.volume_pricing_tiers as any[] | undefined;
+        
+        const hasNewModuleTiers = newModuleTiers && newModuleTiers.length > 0;
+        const hasMetadataTiers = metadataTiers && metadataTiers.length > 0;
+        
+        console.log(`📦 Volume pricing: Module tiers=${hasNewModuleTiers ? newModuleTiers.length : 0}, Metadata tiers=${hasMetadataTiers ? metadataTiers!.length : 0}, Price list: ${volumePricingResult.price_list_name || 'none'}`);
+        
+        if (hasNewModuleTiers || hasMetadataTiers) {
             calculatedPrices = await Promise.all(prices.map(async (price: any) => {
-                // Find matching tier based on quantity range
-                const tier = tiers.find((t: any) => 
-                    t.minQty === price.min_quantity && 
-                    (t.maxQty === price.max_quantity || (t.maxQty === null && (!price.max_quantity || price.max_quantity === null)))
-                );
+                let pricePerSqm: number | null = null;
                 
-                if (tier) {
+                // Try new module first
+                if (hasNewModuleTiers) {
+                    const matchingTier = newModuleTiers.find((t: any) => 
+                        t.min_quantity === price.min_quantity && 
+                        (t.max_quantity === price.max_quantity || (t.max_quantity === null && (!price.max_quantity || price.max_quantity === null)))
+                    );
+                    if (matchingTier) {
+                        pricePerSqm = Number(matchingTier.price_per_sqm) / 100; // Convert from cents
+                    }
+                }
+                
+                // Fall back to metadata if not found in new module
+                if (pricePerSqm === null && hasMetadataTiers) {
+                    const matchingTier = metadataTiers!.find((t: any) => 
+                        t.minQty === price.min_quantity && 
+                        (t.maxQty === price.max_quantity || (t.maxQty === null && (!price.max_quantity || price.max_quantity === null)))
+                    );
+                    if (matchingTier) {
+                        pricePerSqm = matchingTier.pricePerSqm;
+                    }
+                }
+                
+                if (pricePerSqm !== null) {
                     let calculatedAmount = 0;
                     
                     // Use pricing formula if available
@@ -145,7 +173,7 @@ export const POST = async (
                                 {
                                     width_value: width,
                                     length_value: height,
-                                    price_per_sqm: tier.pricePerSqm,
+                                    price_per_sqm: pricePerSqm,
                                 },
                                 1.0 // Volume pricing is already in the tier
                             );
@@ -157,12 +185,12 @@ export const POST = async (
                         } catch (error) {
                             console.error("Formula calculation failed, falling back to simple calculation:", error);
                             // Fallback to simple calculation if formula fails
-                            calculatedAmount = tier.pricePerSqm * sqm + customizationFee;
+                            calculatedAmount = pricePerSqm * sqm + customizationFee;
                         }
                     } else {
                         // Fallback to simple calculation if no formula
-                        calculatedAmount = tier.pricePerSqm * sqm + customizationFee;
-                        console.log(`💰 Simple calculation for qty ${price.min_quantity}-${price.max_quantity}: €${tier.pricePerSqm}/m² × ${sqm.toFixed(4)}m² + €${customizationFee} = €${calculatedAmount}`);
+                        calculatedAmount = pricePerSqm * sqm + customizationFee;
+                        console.log(`💰 Simple calculation for qty ${price.min_quantity}-${price.max_quantity}: €${pricePerSqm}/m² × ${sqm.toFixed(4)}m² + €${customizationFee} = €${calculatedAmount}`);
                     }
                     
                     // Round to 2 decimals

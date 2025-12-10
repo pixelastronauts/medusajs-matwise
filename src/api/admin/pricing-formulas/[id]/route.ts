@@ -30,12 +30,13 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const pricingFormulaService = req.scope.resolve(PRICING_FORMULA_MODULE) as PricingFormulaService;
   const { id } = req.params;
-  const { name, description, formula_string, parameters, is_active } = req.body as {
+  const { name, description, formula_string, parameters, is_active, is_default } = req.body as {
     name?: string;
     description?: string;
     formula_string?: string;
     parameters?: Record<string, number>;
     is_active?: boolean;
+    is_default?: boolean;
   };
 
   try {
@@ -62,6 +63,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       formula_string,
       parameters,
       is_active,
+      is_default,
     });
 
     res.json({

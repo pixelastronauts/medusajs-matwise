@@ -1,11 +1,14 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { Modules } from "@medusajs/framework/utils";
 import { PRICING_FORMULA_MODULE, type PricingFormulaService } from "../../../../../modules/pricing-formula";
+import { VOLUME_PRICING_MODULE, type VolumePricingService } from "../../../../../modules/volume-pricing";
 
 // POST /store/products/:id/calculate-price - Calculate price for a product (formula or fallback)
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const productModuleService = req.scope.resolve(Modules.PRODUCT);
+  const customerModuleService = req.scope.resolve(Modules.CUSTOMER);
   const pricingFormulaService = req.scope.resolve(PRICING_FORMULA_MODULE) as PricingFormulaService;
+  const volumePricingService = req.scope.resolve(VOLUME_PRICING_MODULE) as VolumePricingService;
   
   const { id: productId } = req.params;
   const { 
@@ -13,7 +16,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     height_cm, 
     quantity = 1,
     variant_id,
-    customization_fees = 0
+    customization_fees = 0,
   } = req.body as {
     width_cm: number;
     height_cm: number;
@@ -29,6 +32,21 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   try {
+    // Get authenticated customer and their groups (if logged in)
+    const customerId = req.auth_context?.actor_id;
+    let customerGroupIds: string[] = [];
+
+    if (customerId) {
+      try {
+        const customerGroups = await customerModuleService.listCustomerGroups({
+          customers: customerId,
+        });
+        customerGroupIds = customerGroups.map((g: any) => g.id);
+      } catch {
+        // Ignore errors fetching groups - just use empty array
+      }
+    }
+
     // Get product to check for formula
     const product = await productModuleService.retrieveProduct(productId, {
       select: ["id", "metadata"],
@@ -50,26 +68,65 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       });
     }
 
-    // Get volume pricing tiers from variant metadata
-    const volumeTiers = (variant.metadata?.volume_pricing_tiers as any[]) || [];
-
-    // Find the appropriate tier for the given quantity
+    // Try to get price from new volume pricing module first
     let pricePerSqm = 120.0; // Default fallback
+    let priceListId: string | null = null;
+    let priceListName: string | null = null;
+    let volumePricingTiers: any[] = [];
     
-    if (volumeTiers.length > 0) {
-      const tier = volumeTiers.find((t: any) => {
-        const minQty = t.minQty || 1;
-        const maxQty = t.maxQty || null;
-        
-        if (maxQty === null) {
-          return quantity >= minQty;
+    // Get all tiers for this variant (for display in UI)
+    const tiersResult = await volumePricingService.getTiersForVariant(
+      variant_id,
+      {
+        customerId: customerId,
+        customerGroupIds: customerGroupIds,
+        currencyCode: "eur",
+      }
+    );
+
+    if (tiersResult.tiers.length > 0) {
+      priceListId = tiersResult.price_list_id;
+      priceListName = tiersResult.price_list_name;
+      
+      // Convert tiers to frontend format (price stored in cents, convert to euros)
+      volumePricingTiers = tiersResult.tiers.map((tier: any) => ({
+        minQty: tier.min_quantity,
+        maxQty: tier.max_quantity,
+        pricePerSqm: tier.price_per_sqm / 100,
+      }));
+
+      // Find the applicable tier for the current quantity
+      const applicableTier = volumePricingTiers.find((t: any) => {
+        if (t.maxQty === null) {
+          return quantity >= t.minQty;
         }
-        
-        return quantity >= minQty && quantity <= maxQty;
+        return quantity >= t.minQty && quantity <= t.maxQty;
       });
 
-      if (tier && tier.pricePerSqm) {
-        pricePerSqm = tier.pricePerSqm;
+      if (applicableTier) {
+        pricePerSqm = applicableTier.pricePerSqm;
+      }
+    } else {
+      // Fall back to metadata-based volume pricing tiers
+      const volumeTiers = (variant.metadata?.volume_pricing_tiers as any[]) || [];
+      
+      if (volumeTiers.length > 0) {
+        volumePricingTiers = volumeTiers;
+        
+        const tier = volumeTiers.find((t: any) => {
+          const minQty = t.minQty || 1;
+          const maxQty = t.maxQty || null;
+          
+          if (maxQty === null) {
+            return quantity >= minQty;
+          }
+          
+          return quantity >= minQty && quantity <= maxQty;
+        });
+
+        if (tier && tier.pricePerSqm) {
+          pricePerSqm = tier.pricePerSqm;
+        }
       }
     }
 
@@ -116,6 +173,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       total_price: totalPrice,
       quantity: quantity,
       price_per_sqm: pricePerSqm,
+      price_list_id: priceListId,
+      price_list_name: priceListName,
+      volume_pricing_tiers: volumePricingTiers,
       dimensions: {
         width_cm,
         height_cm,

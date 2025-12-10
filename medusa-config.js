@@ -70,6 +70,9 @@ const medusaConfig = {
       resolve: './src/modules/invoice-generator'
     },
     {
+      resolve: './src/modules/volume-pricing'
+    },
+    {
       resolve: './src/modules/vat_validation'
     },
     {
