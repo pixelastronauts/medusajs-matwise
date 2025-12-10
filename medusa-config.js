@@ -44,6 +44,16 @@ const medusaConfig = {
   admin: {
     backendUrl: BACKEND_URL,
     disable: SHOULD_DISABLE_ADMIN,
+    vite: () => ({
+      plugins: [
+        {
+          name: 'html-transform',
+          transformIndexHtml(html) {
+            return html.replace(/<title>.*?<\/title>/, '<title>Matwise Admin</title>')
+          }
+        }
+      ]
+    }),
   },
   modules: [
     {
