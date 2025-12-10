@@ -23,6 +23,10 @@ const VolumePriceTier = model.define("volume_price_tier", {
   
   // Priority for sorting (lower = higher priority)
   priority: model.number().default(0),
+  
+  // If true, this tier is hidden for guests (non-logged-in users)
+  // The tier will be returned with hidden=true and price masked
+  requires_login: model.boolean().default(false),
 });
 
 export default VolumePriceTier;

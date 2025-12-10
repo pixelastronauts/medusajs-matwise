@@ -84,19 +84,36 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       }
     );
 
+    const isLoggedIn = !!customerId;
+
     if (tiersResult.tiers.length > 0) {
       priceListId = tiersResult.price_list_id;
       priceListName = tiersResult.price_list_name;
       
       // Convert tiers to frontend format (price stored in cents, convert to euros)
-      volumePricingTiers = tiersResult.tiers.map((tier: any) => ({
-        minQty: tier.min_quantity,
-        maxQty: tier.max_quantity,
-        pricePerSqm: tier.price_per_sqm / 100,
-      }));
+      // For tiers that require login, only expose min/max qty (not price)
+      volumePricingTiers = tiersResult.tiers.map((tier: any) => {
+        const requiresLogin = tier.requires_login === true;
+        const isHidden = requiresLogin && !isLoggedIn;
+        
+        // Base tier info - always include quantities
+        const tierData: any = {
+          minQty: tier.min_quantity,
+          maxQty: tier.max_quantity,
+          hidden: isHidden,
+        };
+        
+        // Only include price if not hidden
+        if (!isHidden) {
+          tierData.pricePerSqm = tier.price_per_sqm / 100;
+        }
+        
+        return tierData;
+      });
 
-      // Find the applicable tier for the current quantity
+      // Find the applicable tier for the current quantity (only from visible tiers)
       const applicableTier = volumePricingTiers.find((t: any) => {
+        if (t.hidden) return false; // Don't use hidden tiers for pricing
         if (t.maxQty === null) {
           return quantity >= t.minQty;
         }
@@ -168,18 +185,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     // Calculate total price
     const totalPrice = pricePerItem * quantity;
 
+    // Return minimal data to frontend - don't expose sensitive pricing details
     res.json({
       price_per_item: pricePerItem,
       total_price: totalPrice,
       quantity: quantity,
-      price_per_sqm: pricePerSqm,
-      price_list_id: priceListId,
-      price_list_name: priceListName,
       volume_pricing_tiers: volumePricingTiers,
+      is_logged_in: isLoggedIn,
       dimensions: {
         width_cm,
         height_cm,
-        sqm: (width_cm * height_cm) / 10000,
       },
     });
   } catch (error: any) {

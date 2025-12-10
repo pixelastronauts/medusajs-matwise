@@ -69,7 +69,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     customer_ids?: string[];
     priority?: number;
     currency_code?: string;
-    tiers?: { min_quantity: number; max_quantity?: number | null; price_per_sqm: number }[];
+    tiers?: { min_quantity: number; max_quantity?: number | null; price_per_sqm: number; requires_login?: boolean }[];
     variant_ids?: string[];
   };
 
@@ -93,6 +93,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         min_quantity: t.min_quantity,
         max_quantity: t.max_quantity ?? null,
         price_per_sqm: Math.round(t.price_per_sqm * 100), // Convert euros to cents
+        requires_login: t.requires_login || false,
       })),
     });
 

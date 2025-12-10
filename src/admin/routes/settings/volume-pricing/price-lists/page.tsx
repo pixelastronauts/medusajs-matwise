@@ -272,15 +272,6 @@ const PriceListsPage = () => {
         <Button onClick={openCreateModal}>Create Price List</Button>
       </div>
 
-      {/* Info Box */}
-      <div className="mb-6 rounded-lg bg-blue-50 p-4">
-        <Text className="text-sm text-blue-900">
-          <strong>How it works:</strong> Price lists let you offer different volume pricing tiers
-          to specific customer groups. For example, create a "B2B Pricing" list with lower prices
-          for wholesale customers, or a "VIP" list for loyal customers.
-        </Text>
-      </div>
-
       {/* Price Lists Table */}
       {priceLists.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">

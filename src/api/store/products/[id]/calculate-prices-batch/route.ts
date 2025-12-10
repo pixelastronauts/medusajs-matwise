@@ -85,13 +85,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         return {
           variant_id,
           price_per_item: 0,
-          price_per_sqm: 120.0,
-          price_list_id: null,
         };
       }
 
       let pricePerSqm = 120.0;
-      let priceListId: string | null = null;
 
       // Try new volume pricing module first
       const volumePriceResult = await volumePricingService.findApplicablePricePerSqm(
@@ -106,7 +103,6 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
       if (volumePriceResult) {
         pricePerSqm = volumePriceResult.price_per_sqm / 100; // Convert from cents
-        priceListId = volumePriceResult.price_list_id;
       } else {
         // Fall back to metadata-based pricing
         const volumePricingTiers = (variant.metadata?.volume_pricing_tiers ||
@@ -142,8 +138,6 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       return {
         variant_id,
         price_per_item: calculatedPrice,
-        price_per_sqm: pricePerSqm,
-        price_list_id: priceListId,
       };
     });
 
@@ -152,11 +146,6 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const result = {
       product_id: productId,
       prices,
-      dimensions: {
-        width_cm,
-        height_cm,
-        sqm: (width_cm * height_cm) / 10000,
-      },
       quantity,
     };
 

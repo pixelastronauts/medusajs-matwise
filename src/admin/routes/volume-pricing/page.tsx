@@ -25,6 +25,7 @@ type Tier = {
   min_quantity: number
   max_quantity: number | null
   price_per_sqm: number // in euros for display
+  requires_login?: boolean // if true, hidden for guests
 }
 
 type PriceList = {
@@ -124,6 +125,7 @@ const VolumePricingPage = () => {
   // Drag and drop state
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -137,9 +139,9 @@ const VolumePricingPage = () => {
     priority: 0,
   })
   const [tiers, setTiers] = useState<Tier[]>([
-    { min_quantity: 1, max_quantity: 4, price_per_sqm: 120 },
-    { min_quantity: 5, max_quantity: 19, price_per_sqm: 100 },
-    { min_quantity: 20, max_quantity: null, price_per_sqm: 80 },
+    { min_quantity: 1, max_quantity: 4, price_per_sqm: 120, requires_login: false },
+    { min_quantity: 5, max_quantity: 19, price_per_sqm: 100, requires_login: false },
+    { min_quantity: 20, max_quantity: null, price_per_sqm: 80, requires_login: false },
   ])
   const [saving, setSaving] = useState(false)
 
@@ -233,9 +235,9 @@ const VolumePricingPage = () => {
       priority: 0,
     })
     setTiers([
-      { min_quantity: 1, max_quantity: 4, price_per_sqm: 120 },
-      { min_quantity: 5, max_quantity: 19, price_per_sqm: 100 },
-      { min_quantity: 20, max_quantity: null, price_per_sqm: 80 },
+      { min_quantity: 1, max_quantity: 4, price_per_sqm: 120, requires_login: false },
+      { min_quantity: 5, max_quantity: 19, price_per_sqm: 100, requires_login: false },
+      { min_quantity: 20, max_quantity: null, price_per_sqm: 80, requires_login: false },
     ])
     setSelectedVariantIds([])
     setExpandedProducts(new Set())
@@ -247,7 +249,12 @@ const VolumePricingPage = () => {
     setShowModal(true)
   }
 
-  const openEditModal = async (priceList: PriceList) => {
+  const openEditModal = (priceList: PriceList) => {
+    // Navigate to the edit page
+    navigate(`/volume-pricing/${priceList.id}`)
+  }
+
+  const openEditModalLegacy = async (priceList: PriceList) => {
     try {
       // Fetch full price list with tiers and variants
       const response = await fetch(`/admin/volume-pricing/price-lists/${priceList.id}`, {
@@ -278,6 +285,7 @@ const VolumePricingPage = () => {
           min_quantity: t.min_quantity,
           max_quantity: t.max_quantity,
           price_per_sqm: t.price_per_sqm_display || Number(t.price_per_sqm) / 100,
+          requires_login: t.requires_login || false,
         })) || []
       )
 
@@ -322,6 +330,7 @@ const VolumePricingPage = () => {
           min_quantity: t.min_quantity,
           max_quantity: t.max_quantity,
           price_per_sqm: t.price_per_sqm,
+          requires_login: t.requires_login || false,
         })),
         variant_ids: selectedVariantIds,
       }
@@ -347,6 +356,17 @@ const VolumePricingPage = () => {
       if (!response.ok) {
         const error = await response.json()
         throw new Error(error.message || "Failed to save")
+      }
+
+      // Clear price caches after successful save
+      try {
+        await fetch(`/admin/volume-pricing/clear-cache`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        })
+      } catch {
+        // Cache clear failed, but save was successful - continue
       }
 
       toast.success("Success", {
@@ -379,6 +399,16 @@ const VolumePricingPage = () => {
         throw new Error(error.message || "Failed to delete")
       }
 
+      // Clear price caches
+      try {
+        await fetch(`/admin/volume-pricing/clear-cache`, {
+          method: "POST",
+          credentials: "include",
+        })
+      } catch {
+        // Ignore cache clear errors
+      }
+
       toast.success("Deleted", { description: "Price list deleted successfully" })
       await fetchData()
     } catch (err: any) {
@@ -398,6 +428,16 @@ const VolumePricingPage = () => {
       })
 
       if (!response.ok) throw new Error("Failed to update status")
+
+      // Clear price caches (status change affects pricing)
+      try {
+        await fetch(`/admin/volume-pricing/clear-cache`, {
+          method: "POST",
+          credentials: "include",
+        })
+      } catch {
+        // Ignore cache clear errors
+      }
 
       toast.success("Updated", { description: `Price list is now ${newStatus}` })
       await fetchData()
@@ -432,8 +472,8 @@ const VolumePricingPage = () => {
       })
       await fetchData()
       
-      // Open the duplicated price list for editing
-      openEditModal(data.price_list)
+      // Navigate to edit the duplicated price list
+      navigate(`/volume-pricing/${data.price_list.id}`)
     } catch (err: any) {
       toast.error("Error", { description: err.message })
     }
@@ -450,6 +490,7 @@ const VolumePricingPage = () => {
         min_quantity: newMinQty,
         max_quantity: null,
         price_per_sqm: lastTier ? lastTier.price_per_sqm * 0.9 : 80,
+        requires_login: false,
       },
     ])
   }
@@ -530,8 +571,11 @@ const VolumePricingPage = () => {
       if (filterStatus !== "_all" && pl.status !== filterStatus) {
         return false
       }
-      // Customer group filter
+      // Customer group filter - only show customer_group type with this group attached
       if (filterCustomerGroup !== "_all") {
+        if (pl.type !== "customer_group") {
+          return false
+        }
         if (!pl.customer_group_ids || !pl.customer_group_ids.includes(filterCustomerGroup)) {
           return false
         }
@@ -543,6 +587,7 @@ const VolumePricingPage = () => {
   // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedId(id)
+    setIsDragging(true)
     e.dataTransfer.effectAllowed = "move"
   }
 
@@ -566,45 +611,46 @@ const VolumePricingPage = () => {
       return
     }
 
-    // Reorder the list
-    const draggedIndex = filteredPriceLists.findIndex((pl) => pl.id === draggedId)
-    const targetIndex = filteredPriceLists.findIndex((pl) => pl.id === targetId)
+    // Work with the current sorted list
+    const currentList = [...priceLists].sort((a, b) => b.priority - a.priority)
+    const draggedIndex = currentList.findIndex((pl) => pl.id === draggedId)
+    const targetIndex = currentList.findIndex((pl) => pl.id === targetId)
 
     if (draggedIndex === -1 || targetIndex === -1) {
       setDraggedId(null)
       return
     }
 
-    // Calculate new priorities (swap or insert)
-    const newPriceLists = [...priceLists]
-    const draggedItem = newPriceLists.find((pl) => pl.id === draggedId)
-    const targetItem = newPriceLists.find((pl) => pl.id === targetId)
+    // Remove dragged item and insert at target position
+    const [draggedItem] = currentList.splice(draggedIndex, 1)
+    currentList.splice(targetIndex, 0, draggedItem)
 
-    if (draggedItem && targetItem) {
-      // Swap priorities
-      const tempPriority = draggedItem.priority
-      draggedItem.priority = targetItem.priority
-      targetItem.priority = tempPriority
+    // Reassign priorities based on new order (highest priority = first in list)
+    const updatedItems: { id: string; priority: number }[] = []
+    currentList.forEach((item, index) => {
+      const newPriority = currentList.length - index // Higher index = lower priority
+      if (item.priority !== newPriority) {
+        item.priority = newPriority
+        updatedItems.push({ id: item.id, priority: newPriority })
+      }
+    })
 
-      // Update locally first for instant feedback
-      setPriceLists(newPriceLists.sort((a, b) => b.priority - a.priority))
+    // Update locally first for instant feedback
+    setPriceLists([...currentList])
 
-      // Update on server
+    // Update changed items on server
+    if (updatedItems.length > 0) {
       try {
-        await Promise.all([
-          fetch(`/admin/volume-pricing/price-lists/${draggedItem.id}`, {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ priority: draggedItem.priority }),
-          }),
-          fetch(`/admin/volume-pricing/price-lists/${targetItem.id}`, {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ priority: targetItem.priority }),
-          }),
-        ])
+        await Promise.all(
+          updatedItems.map((item) =>
+            fetch(`/admin/volume-pricing/price-lists/${item.id}`, {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ priority: item.priority }),
+            })
+          )
+        )
         toast.success("Updated", { description: "Priority order updated" })
       } catch (err: any) {
         toast.error("Error", { description: "Failed to update priorities" })
@@ -618,6 +664,8 @@ const VolumePricingPage = () => {
   const handleDragEnd = () => {
     setDraggedId(null)
     setDragOverId(null)
+    // Delay resetting isDragging to prevent onClick from firing
+    setTimeout(() => setIsDragging(false), 100)
   }
 
   // Full pricing simulator (uses real API)
@@ -894,7 +942,6 @@ const VolumePricingPage = () => {
                 <Table.HeaderCell>Status</Table.HeaderCell>
                 <Table.HeaderCell>Tiers</Table.HeaderCell>
                 <Table.HeaderCell>Variants</Table.HeaderCell>
-                <Table.HeaderCell>Priority</Table.HeaderCell>
                 <Table.HeaderCell>Actions</Table.HeaderCell>
               </Table.Row>
             </Table.Header>
@@ -908,11 +955,12 @@ const VolumePricingPage = () => {
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, pl.id)}
                   onDragEnd={handleDragEnd}
-                  className={`cursor-grab transition-colors ${
+                  onClick={() => !isDragging && openEditModal(pl)}
+                  className={`cursor-pointer hover:bg-gray-50 transition-colors ${
                     draggedId === pl.id ? "opacity-50 bg-gray-100" : ""
                   } ${dragOverId === pl.id ? "bg-blue-50 border-t-2 border-blue-500" : ""}`}
                 >
-                  <Table.Cell className="w-8 text-gray-400">
+                  <Table.Cell className="w-8 text-gray-400" onClick={(e) => e.stopPropagation()}>
                     <div className="flex flex-col gap-0.5 cursor-grab">
                       <span className="text-xs">⋮⋮</span>
                     </div>
@@ -959,7 +1007,7 @@ const VolumePricingPage = () => {
                       <Text className="text-xs text-gray-400">All customers</Text>
                     )}
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2">
                       <Switch
                         checked={pl.status === "active"}
@@ -980,16 +1028,8 @@ const VolumePricingPage = () => {
                       {pl.variant_count || 0} variant(s)
                     </Badge>
                   </Table.Cell>
-                  <Table.Cell>
-                    <Badge color="blue" size="small">
-                      {pl.priority}
-                    </Badge>
-                  </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2">
-                      <Button variant="transparent" size="small" onClick={() => openEditModal(pl)}>
-                        Edit
-                      </Button>
                       <Button variant="transparent" size="small" onClick={() => handleDuplicate(pl)}>
                         Duplicate
                       </Button>
@@ -1371,6 +1411,18 @@ const VolumePricingPage = () => {
                               -{discountPercent}%
                             </Badge>
                           )}
+                          <div className="flex items-center gap-1 ml-2">
+                            <input
+                              type="checkbox"
+                              id={`requires-login-${idx}`}
+                              checked={tier.requires_login || false}
+                              onChange={(e) => updateTier(idx, "requires_login", e.target.checked)}
+                              className="w-4 h-4 rounded border-gray-300"
+                            />
+                            <label htmlFor={`requires-login-${idx}`} className="text-xs text-gray-500" title="Hidden for guests - requires login to see price">
+                              🔒
+                            </label>
+                          </div>
                           <Button
                             variant="transparent"
                             size="small"

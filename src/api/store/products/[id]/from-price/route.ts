@@ -1,10 +1,9 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { Modules } from "@medusajs/framework/utils";
 import { VOLUME_PRICING_MODULE, type VolumePricingService } from "../../../../../modules/volume-pricing";
+import { fromPriceCache, FROM_PRICE_CACHE_TTL } from "../../../../../utils/price-cache";
 
-// Heavy caching for "from price" - rarely changes
-const fromPriceCache = new Map<string, { price: number; timestamp: number }>();
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const CACHE_TTL = FROM_PRICE_CACHE_TTL;
 
 // Handle CORS preflight
 export const OPTIONS = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -49,7 +48,6 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       return res.json({
         from_price: cached.price,
         cached: true,
-        dimensions: { width_cm: 30, height_cm: 30, sqm: 0.09 },
       });
     }
 
@@ -117,15 +115,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       return res.json({
         from_price: fromPrice,
         cached: false,
-        dimensions: { width_cm: 30, height_cm: 30, sqm: 0.09 },
-        formula_used: false,
       });
     }
 
     // Use formula - find cheapest material
     let cheapestPrice = Infinity;
-    let cheapestVariantId: string | null = null;
-    let cheapestPricePerSqm = 120.0;
 
     for (const variant of product.variants || []) {
       if (variant.metadata?.custom === true) continue;
@@ -143,16 +137,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         }
       );
 
-      console.log(`[FROM PRICE] Variant ${variant.id}, price_per_sqm: ${pricePerSqm}, calculated: ${calculatedPrice}`);
-
       if (calculatedPrice < cheapestPrice) {
         cheapestPrice = calculatedPrice;
-        cheapestVariantId = variant.id;
-        cheapestPricePerSqm = pricePerSqm;
       }
     }
-
-    console.log(`[FROM PRICE] Cheapest price found: ${cheapestPrice}`);
 
     const fromPrice = cheapestPrice !== Infinity ? cheapestPrice : Math.floor(0.09 * 120.0);
 
@@ -175,10 +163,6 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     res.json({
       from_price: fromPrice,
       cached: false,
-      dimensions: { width_cm: 30, height_cm: 30, sqm: 0.09 },
-      formula_used: true,
-      cheapest_variant_id: cheapestVariantId,
-      cheapest_price_per_sqm: cheapestPricePerSqm,
     });
   } catch (error: any) {
     console.error("Error calculating from price:", error);

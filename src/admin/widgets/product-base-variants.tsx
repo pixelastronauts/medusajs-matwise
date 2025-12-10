@@ -103,8 +103,8 @@ const ProductBaseVariantsWidget = () => {
   }
 
   return (
-    <Container className="p-4">
-      <div className="flex items-center justify-between mb-3">
+    <Container className="p-0">
+      <div className="flex items-center justify-between px-6 py-4">
         <Heading level="h2" className="text-base">Variant Summary</Heading>
         <div className="flex items-center gap-2">
           <Badge color="green" size="small">
@@ -119,9 +119,8 @@ const ProductBaseVariantsWidget = () => {
       </div>
 
 
-      <div className="mb-3">
-        <Text className="text-sm text-gray-600 font-medium mb-2">Base Variants ({stats.base})</Text>
-        
+      <div className="divide-y">
+    
         {baseVariants.length === 0 ? (
           <Text className="text-sm text-gray-500 italic">No base variants found</Text>
         ) : (

@@ -28,10 +28,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 };
 
 /**
- * POST /admin/volume-pricing/price-lists/:id
+ * PUT/POST /admin/volume-pricing/price-lists/:id
  * Update a volume price list
  */
-export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+const updatePriceList = async (req: MedusaRequest, res: MedusaResponse) => {
   const volumePricingService = req.scope.resolve(VOLUME_PRICING_MODULE) as VolumePricingService;
   const { id } = req.params;
 
@@ -59,7 +59,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     customer_ids?: string[];
     priority?: number;
     currency_code?: string;
-    tiers?: { min_quantity: number; max_quantity?: number | null; price_per_sqm: number }[];
+    tiers?: { min_quantity: number; max_quantity?: number | null; price_per_sqm: number; requires_login?: boolean }[];
     variant_ids?: string[];
   };
 
@@ -87,6 +87,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           min_quantity: t.min_quantity,
           max_quantity: t.max_quantity ?? null,
           price_per_sqm: Math.round(t.price_per_sqm * 100), // Convert euros to cents
+          requires_login: t.requires_login || false,
         }))
       );
     }
@@ -102,6 +103,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// Export both PUT and POST for the update endpoint
+export const PUT = updatePriceList;
+export const POST = updatePriceList;
 
 /**
  * DELETE /admin/volume-pricing/price-lists/:id

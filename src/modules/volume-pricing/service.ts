@@ -317,18 +317,18 @@ class VolumePricingModuleService extends MedusaService({
     });
 
     // Sort eligible price lists: 
-    // 1. By priority (DESC)
-    // 2. By type: customer_group/sale before default (when priorities are equal)
+    // 1. By type: customer_group > sale > default (type takes precedence over priority)
+    // 2. By priority (DESC) within the same type
     eligiblePriceLists.sort((a: any, b: any) => {
-      // First sort by priority (higher = first)
-      if (b.priority !== a.priority) {
-        return b.priority - a.priority;
-      }
-      // When priorities are equal, customer_group/sale types come before default
+      // First sort by type (customer_group always comes before default)
       const typeOrder = { customer_group: 0, sale: 1, default: 2 };
       const aOrder = typeOrder[a.type as keyof typeof typeOrder] ?? 2;
       const bOrder = typeOrder[b.type as keyof typeof typeOrder] ?? 2;
-      return aOrder - bOrder;
+      if (aOrder !== bOrder) {
+        return aOrder - bOrder;
+      }
+      // When types are equal, sort by priority (higher = first)
+      return b.priority - a.priority;
     });
 
     // Find the first price list that has a matching tier for the quantity
@@ -432,18 +432,18 @@ class VolumePricingModuleService extends MedusaService({
     });
 
     // Sort eligible price lists: 
-    // 1. By priority (DESC)
-    // 2. By type: customer_group/sale before default (when priorities are equal)
+    // 1. By type: customer_group > sale > default (type takes precedence over priority)
+    // 2. By priority (DESC) within the same type
     eligiblePriceLists.sort((a: any, b: any) => {
-      // First sort by priority (higher = first)
-      if (b.priority !== a.priority) {
-        return b.priority - a.priority;
-      }
-      // When priorities are equal, customer_group/sale types come before default
+      // First sort by type (customer_group always comes before default)
       const typeOrder = { customer_group: 0, sale: 1, default: 2 };
       const aOrder = typeOrder[a.type as keyof typeof typeOrder] ?? 2;
       const bOrder = typeOrder[b.type as keyof typeof typeOrder] ?? 2;
-      return aOrder - bOrder;
+      if (aOrder !== bOrder) {
+        return aOrder - bOrder;
+      }
+      // When types are equal, sort by priority (higher = first)
+      return b.priority - a.priority;
     });
 
     // Return tiers from the first (highest priority) eligible price list
@@ -461,6 +461,7 @@ class VolumePricingModuleService extends MedusaService({
           max_quantity: tier.max_quantity,
           price_per_sqm: Number(tier.price_per_sqm), // In cents
           price_per_sqm_display: Number(tier.price_per_sqm) / 100, // In euros
+          requires_login: tier.requires_login === true,
         })),
         price_list_id: priceList.id,
         price_list_name: priceList.name,
