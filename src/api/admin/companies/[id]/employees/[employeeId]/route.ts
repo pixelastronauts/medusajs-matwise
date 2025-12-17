@@ -12,7 +12,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     spending_limit,
     is_active,
   } = req.body as {
-    role?: "admin" | "member";
+    role?: "manager" | "employee" | "admin" | "member";
     spending_limit?: number;
     is_active?: boolean;
   };
@@ -24,7 +24,14 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   } = {};
 
   if (role !== undefined) {
-    updateData.role = role === "admin" ? EmployeeRole.ADMIN : EmployeeRole.MEMBER;
+    // Map roles to enum values (support both old and new values)
+    const roleMap: Record<string, EmployeeRole> = {
+      "manager": EmployeeRole.MANAGER,
+      "employee": EmployeeRole.EMPLOYEE,
+      "admin": EmployeeRole.ADMIN,
+      "member": EmployeeRole.MEMBER,
+    };
+    updateData.role = roleMap[role];
   }
   if (spending_limit !== undefined) {
     updateData.spending_limit = spending_limit;
@@ -47,4 +54,6 @@ export async function DELETE(req: MedusaRequest, res: MedusaResponse) {
 
   res.status(200).json({ id: employeeId, object: "employee", deleted: true });
 }
+
+
 

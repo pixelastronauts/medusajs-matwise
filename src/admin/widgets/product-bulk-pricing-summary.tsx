@@ -121,3 +121,5 @@ export const config = defineWidgetConfig({
 
 export default ProductBulkPricingSummaryWidget
 
+
+

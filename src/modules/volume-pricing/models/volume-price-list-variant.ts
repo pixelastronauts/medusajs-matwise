@@ -18,3 +18,5 @@ const VolumePriceListVariant = model.define("volume_price_list_variant", {
 
 export default VolumePriceListVariant;
 
+
+

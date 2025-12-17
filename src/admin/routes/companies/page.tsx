@@ -216,3 +216,5 @@ export const config = defineRouteConfig({
 
 export default CompaniesPage
 
+
+

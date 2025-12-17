@@ -6,6 +6,8 @@ import {
 } from '@medusajs/framework/types'
 import { SubscriberArgs, SubscriberConfig } from '@medusajs/medusa'
 import { DASHBOARD_API_URL, DASHBOARD_WEBHOOK_SECRET } from '../lib/constants'
+import { COMPANY_MODULE } from '../modules/company'
+import type CompanyModuleService from '../modules/company/service'
 
 export default async function dashboardSync({
   event: { name, data },
@@ -83,6 +85,21 @@ export default async function dashboardSync({
             relations: ['variants', 'options', 'tags', 'type', 'collection', 'images']
         })
         endpoint = '/webhooks/medusa/products'
+        break
+
+      case 'company.created':
+      case 'company.updated':
+        const companyModuleService: CompanyModuleService = container.resolve(COMPANY_MODULE)
+        const company = await companyModuleService.retrieveCompany(data.id)
+
+        // Loop prevention: Check if this was recently synced from dashboard
+        if (shouldSkipSync(company.metadata, 'company', logger)) {
+          logger.info(`Skipping company sync to prevent loop - companyId: ${company.id}`)
+          return
+        }
+
+        payload = company
+        endpoint = '/webhooks/medusa/companies'
         break
 
       default:
@@ -190,6 +207,8 @@ export const config: SubscriberConfig = {
     'order.updated',
     'customer.created',
     'customer.updated',
+    'company.created',
+    'company.updated',
     'product.created',
     'product.updated'
   ]
