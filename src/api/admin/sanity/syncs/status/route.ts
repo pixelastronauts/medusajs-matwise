@@ -21,7 +21,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   // Get all products from Medusa
   const { data: products } = await query.graph({
     entity: "product",
-    fields: ["id", "title", "handle", "updated_at", "variants.id"],
+    fields: ["id", "title", "handle", "updated_at", "variants.id", "variants.sku"],
   })
 
   // Get all product IDs and check them in Sanity
@@ -37,8 +37,20 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   let missingCount = 0
 
   for (const product of products) {
+    // Skip products with 'mw_' in handle (they shouldn't be in Sanity)
+    const handle = product.handle?.toLowerCase() || ''
+    if (handle.includes('mw_')) {
+      continue
+    }
+
+    // Count only variants that should be synced (exclude MW_ SKUs)
+    const syncableVariants = product.variants?.filter((variant: any) => {
+      const sku = variant.sku?.toLowerCase() || ''
+      return !sku.includes('mw_')
+    }) || []
+    const variantsCount = syncableVariants.length
+    
     const sanityDoc = sanityMap.get(product.id)
-    const variantsCount = product.variants?.length || 0
 
     if (!sanityDoc) {
       missingCount++
@@ -99,14 +111,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const statusOrder = { missing_in_sanity: 0, out_of_sync: 1, synced: 2 }
   statuses.sort((a, b) => statusOrder[a.status] - statusOrder[b.status])
 
+  // Total is based on products we actually checked (excluding MW_ products)
+  const totalProducts = statuses.length
+
   res.json({
     summary: {
-      total: products.length,
+      total: totalProducts,
       synced: syncedCount,
       out_of_sync: outOfSyncCount,
       missing_in_sanity: missingCount,
-      sync_percentage: products.length
-        ? Math.round((syncedCount / products.length) * 100)
+      sync_percentage: totalProducts
+        ? Math.round((syncedCount / totalProducts) * 100)
         : 100,
     },
     products: statuses,
