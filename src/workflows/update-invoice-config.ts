@@ -1,4 +1,4 @@
-import { createWorkflow, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
+import { createWorkflow, WorkflowResponse, type ReturnWorkflow } from "@medusajs/framework/workflows-sdk"
 import { updateInvoiceConfigStep } from "./steps/update-invoice-config"
 
 type WorkflowInput = {
@@ -11,7 +11,11 @@ type WorkflowInput = {
   notes?: string
 }
 
-export const updateInvoiceConfigWorkflow = createWorkflow(
+export const updateInvoiceConfigWorkflow: ReturnWorkflow<
+  WorkflowInput,
+  any,
+  any
+> = createWorkflow(
   "update-invoice-config",
   (input: WorkflowInput) => {
     const invoiceConfig = updateInvoiceConfigStep(input)
