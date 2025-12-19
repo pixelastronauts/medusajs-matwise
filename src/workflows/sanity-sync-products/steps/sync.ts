@@ -50,10 +50,23 @@ export const syncStep = createStep(
       try {
         await promiseAll(
           products.map(async (prod) => {
+            // First, sync the product without variants to ensure it exists in Sanity
+            const after = await sanityModule.upsertSyncDocument(
+              "product",
+              { ...prod, variants: [] } as unknown as ProductDTO
+            )
+            
+            // Then sync the variants that reference this product
             const variantRefs: any[] = []
             if (prod.variants) {
+              // Filter out variants with 'custom-' in their title (case insensitive)
+              const filteredVariants = prod.variants.filter((variant: any) => {
+                const title = variant.title?.toLowerCase() || ''
+                return !title.includes('custom-')
+              })
+              
               await promiseAll(
-                prod.variants.map(async (variant: any) => {
+                filteredVariants.map(async (variant: any) => {
                   await sanityModule.upsertSyncDocument("productVariant", {
                     ...variant,
                     product_id: prod.id,
@@ -65,12 +78,14 @@ export const syncStep = createStep(
                   })
                 })
               )
+              
+              // Finally, update the product with the variant references
+              await sanityModule.upsertSyncDocument(
+                "product",
+                { ...prod, variants: variantRefs } as unknown as ProductDTO
+              )
             }
 
-            const after = await sanityModule.upsertSyncDocument(
-              "product",
-              { ...prod, variants: variantRefs } as unknown as ProductDTO
-            )
             upsertMap.push({
               // @ts-ignore
               before: prod.sanity_product,
