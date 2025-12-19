@@ -44,7 +44,7 @@ const medusaConfig = {
   admin: {
     backendUrl: BACKEND_URL,
     disable: SHOULD_DISABLE_ADMIN,
-    path: "/",
+    path: "/app",
     vite: () => ({
       plugins: [
         {
