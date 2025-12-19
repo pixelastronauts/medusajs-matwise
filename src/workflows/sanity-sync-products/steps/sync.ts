@@ -50,6 +50,40 @@ export const syncStep = createStep(
       try {
         await promiseAll(
           products.map(async (prod) => {
+            // Check if product should be excluded (handle contains 'mw_')
+            const handle = prod.handle?.toLowerCase() || ''
+            const shouldExcludeProduct = handle.includes('mw_')
+            
+            if (shouldExcludeProduct) {
+              // Delete product from Sanity if it exists
+              try {
+                const existing = await sanityModule.retrieve(prod.id)
+                if (existing) {
+                  await sanityModule.delete(prod.id)
+                }
+              } catch (e) {
+                // Product doesn't exist in Sanity, ignore
+              }
+              
+              // Also delete all its variants from Sanity
+              if (prod.variants) {
+                await promiseAll(
+                  prod.variants.map(async (variant: any) => {
+                    try {
+                      const existing = await sanityModule.retrieve(variant.id)
+                      if (existing) {
+                        await sanityModule.delete(variant.id)
+                      }
+                    } catch (e) {
+                      // Variant doesn't exist in Sanity, ignore
+                    }
+                  })
+                )
+              }
+              
+              return null
+            }
+            
             // First, sync the product without variants to ensure it exists in Sanity
             const after = await sanityModule.upsertSyncDocument(
               "product",
@@ -59,14 +93,36 @@ export const syncStep = createStep(
             // Then sync the variants that reference this product
             const variantRefs: any[] = []
             if (prod.variants) {
-              // Filter out variants with 'custom-' in their title (case insensitive)
-              const filteredVariants = prod.variants.filter((variant: any) => {
-                const title = variant.title?.toLowerCase() || ''
-                return !title.includes('custom-')
+              // Split variants into those to sync and those to exclude
+              const variantsToSync: any[] = []
+              const variantsToExclude: any[] = []
+              
+              prod.variants.forEach((variant: any) => {
+                const sku = variant.sku?.toLowerCase() || ''
+                if (sku.includes('mw_')) {
+                  variantsToExclude.push(variant)
+                } else {
+                  variantsToSync.push(variant)
+                }
               })
               
+              // Delete excluded variants from Sanity if they exist
               await promiseAll(
-                filteredVariants.map(async (variant: any) => {
+                variantsToExclude.map(async (variant: any) => {
+                  try {
+                    const existing = await sanityModule.retrieve(variant.id)
+                    if (existing) {
+                      await sanityModule.delete(variant.id)
+                    }
+                  } catch (e) {
+                    // Variant doesn't exist in Sanity, ignore
+                  }
+                })
+              )
+              
+              // Sync the allowed variants
+              await promiseAll(
+                variantsToSync.map(async (variant: any) => {
                   await sanityModule.upsertSyncDocument("productVariant", {
                     ...variant,
                     product_id: prod.id,
@@ -86,11 +142,13 @@ export const syncStep = createStep(
               )
             }
 
-            upsertMap.push({
-              // @ts-ignore
-              before: prod.sanity_product,
-              after,
-            })
+            if (after) {
+              upsertMap.push({
+                // @ts-ignore
+                before: prod.sanity_product,
+                after,
+              })
+            }
             return after
           })
         )
