@@ -204,7 +204,7 @@ const ProductSanityStatusWidget = () => {
 
       <div className="mt-3 pt-3 border-t">
         <a
-          href="/settings/sanity-sync"
+          href="/app/settings/sanity-sync"
           className="text-xs text-blue-600 hover:underline"
         >
           View full sync status →
@@ -219,6 +219,8 @@ export const config = defineWidgetConfig({
 })
 
 export default ProductSanityStatusWidget
+
+
 
 
 

@@ -5,9 +5,17 @@ import {
   IProductModuleService 
 } from '@medusajs/framework/types'
 import { SubscriberArgs, SubscriberConfig } from '@medusajs/medusa'
+import { createHmac } from 'crypto'
 import { DASHBOARD_API_URL, DASHBOARD_WEBHOOK_SECRET } from '../lib/constants'
 import { COMPANY_MODULE } from '../modules/company'
 import type CompanyModuleService from '../modules/company/service'
+
+/**
+ * Generate HMAC-SHA256 signature for webhook payload
+ */
+function generateSignature(payload: string, secret: string): string {
+  return createHmac('sha256', secret).update(payload).digest('hex')
+}
 
 export default async function dashboardSync({
   event: { name, data },
@@ -148,19 +156,17 @@ function shouldSkipSync(metadata: any, entityType: string, logger: any): boolean
 
 async function sendToDashboard(endpoint: string, data: any, eventName: string, logger: any) {
     const url = `${DASHBOARD_API_URL}${endpoint}`
+    const body = JSON.stringify(data)
     
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-medusa-event': eventName,
     }
 
+    // Sign the payload with HMAC-SHA256 if secret is configured
     if (DASHBOARD_WEBHOOK_SECRET) {
-        // TODO: Sign the payload if needed, for now just passing the secret if that's what's expected
-        // But usually signature is HMAC. Dashboard controller checks for 'x-medusa-signature'
-        // For now, we assume the dashboard might verify signature later. 
-        // If we want to be secure, we should implement HMAC-SHA256 signature.
-        // But simple secret checking isn't implemented in the dashboard yet ("TODO: Implement signature verification").
-        // So we skip complex signature for now.
+        const signature = generateSignature(body, DASHBOARD_WEBHOOK_SECRET)
+        headers['x-medusa-signature'] = signature
     }
 
     try {
@@ -170,7 +176,7 @@ async function sendToDashboard(endpoint: string, data: any, eventName: string, l
         const response = await fetch(url, {
             method: 'POST',
             headers,
-            body: JSON.stringify(data),
+            body,
             signal: controller.signal,
         })
 
