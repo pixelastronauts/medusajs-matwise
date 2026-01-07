@@ -1,6 +1,6 @@
 import { SubscriberArgs, SubscriberConfig } from '@medusajs/medusa'
 import { Modules } from '@medusajs/framework/utils'
-import axios from 'axios'
+import { sendDashboardWebhook } from '../utils/webhook-signature'
 
 /**
  * Send order data to Laravel Dashboard for invoice generation
@@ -28,9 +28,9 @@ export async function orderPlacedWebhookHandler({
     console.log('📤 Sending order to Dashboard for invoice generation:', order.id)
 
     // Send to Laravel Dashboard webhook
-    await axios.post(
-      `${process.env.DASHBOARD_URL}/api/webhooks/medusa/order-placed`,
-      {
+    const result = await sendDashboardWebhook({
+      endpoint: '/webhooks/medusa/order-placed',
+      data: {
         event: 'order.placed',
         order_id: order.id,
         order: {
@@ -67,15 +67,14 @@ export async function orderPlacedWebhookHandler({
           metadata: order.metadata,
         }
       },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Medusa-Signature': process.env.WEBHOOK_SECRET || '',
-        }
-      }
-    )
+      eventName: 'order.placed'
+    })
 
-    console.log('✅ Order sent to Dashboard successfully')
+    if (result.success) {
+      console.log('✅ Order sent to Dashboard successfully')
+    } else {
+      console.error('❌ Error sending order to Dashboard:', result.error)
+    }
   } catch (error) {
     console.error('❌ Error sending order to Dashboard:', error)
   }
@@ -130,9 +129,9 @@ async function refundCreatedWebhookHandler({
     console.log('📤 Sending refund to Dashboard for credit note generation:', latestRefund.id)
 
     // Send to Laravel Dashboard webhook
-    await axios.post(
-      `${process.env.DASHBOARD_URL}/api/webhooks/medusa/refund-created`,
-      {
+    const result = await sendDashboardWebhook({
+      endpoint: '/webhooks/medusa/refund-created',
+      data: {
         event: 'payment.refunded',
         order_id: order.id,
         refund: {
@@ -156,15 +155,14 @@ async function refundCreatedWebhookHandler({
           } : null,
         }
       },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Medusa-Signature': process.env.WEBHOOK_SECRET || '',
-        }
-      }
-    )
+      eventName: 'payment.refunded'
+    })
 
-    console.log('✅ Refund sent to Dashboard successfully')
+    if (result.success) {
+      console.log('✅ Refund sent to Dashboard successfully')
+    } else {
+      console.error('❌ Error sending refund to Dashboard:', result.error)
+    }
   } catch (error) {
     console.error('❌ Error sending refund to Dashboard:', error)
   }

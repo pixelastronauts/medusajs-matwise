@@ -5,17 +5,10 @@ import {
   IProductModuleService 
 } from '@medusajs/framework/types'
 import { SubscriberArgs, SubscriberConfig } from '@medusajs/medusa'
-import { createHmac } from 'crypto'
-import { DASHBOARD_API_URL, DASHBOARD_WEBHOOK_SECRET } from '../lib/constants'
+import { DASHBOARD_API_URL } from '../lib/constants'
 import { COMPANY_MODULE } from '../modules/company'
 import type CompanyModuleService from '../modules/company/service'
-
-/**
- * Generate HMAC-SHA256 signature for webhook payload
- */
-function generateSignature(payload: string, secret: string): string {
-  return createHmac('sha256', secret).update(payload).digest('hex')
-}
+import { sendDashboardWebhook } from '../utils/webhook-signature'
 
 export default async function dashboardSync({
   event: { name, data },
@@ -155,53 +148,24 @@ function shouldSkipSync(metadata: any, entityType: string, logger: any): boolean
 }
 
 async function sendToDashboard(endpoint: string, data: any, eventName: string, logger: any) {
-    const url = `${DASHBOARD_API_URL}${endpoint}`
-    const body = JSON.stringify(data)
-    
-    const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'x-medusa-event': eventName,
-    }
+    const result = await sendDashboardWebhook({
+        endpoint,
+        data,
+        eventName,
+    })
 
-    // Sign the payload with HMAC-SHA256 if secret is configured
-    if (DASHBOARD_WEBHOOK_SECRET) {
-        const signature = generateSignature(body, DASHBOARD_WEBHOOK_SECRET)
-        headers['x-medusa-signature'] = signature
-    }
-
-    try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 10000) // 10 second timeout
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers,
-            body,
-            signal: controller.signal,
-        })
-
-        clearTimeout(timeout)
-
-        if (!response.ok) {
-            const text = await response.text()
-            throw new Error(`Dashboard responded with ${response.status}: ${text}`)
-        }
-
-        const result = await response.json()
+    if (result.success) {
         logger.info(`✓ Synced ${eventName} to dashboard`, {
             event: eventName,
             orderId: data?.id,
             displayId: data?.display_id,
         })
-    } catch (e) {
-        const errorMsg = e.name === 'AbortError' ? 'Request timeout after 10s' : e.message
-        logger.error(`✗ Error sending webhook to ${url}: ${errorMsg}`, {
+    } else {
+        logger.error(`✗ Error sending webhook: ${result.error}`, {
             event: eventName,
-            url,
-            error: errorMsg,
-            cause: e.cause?.code || 'unknown',
+            endpoint,
+            error: result.error,
         })
-        
         // Don't throw - we don't want to fail the order placement if dashboard sync fails
         // The order can be manually synced later using the sync API
     }

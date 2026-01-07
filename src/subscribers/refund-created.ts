@@ -1,6 +1,6 @@
 import { SubscriberArgs, SubscriberConfig } from '@medusajs/medusa'
 import { Modules } from '@medusajs/framework/utils'
-import axios from 'axios'
+import { sendDashboardWebhook } from '../utils/webhook-signature'
 
 export default async function refundCreatedHandler({
   event: { data },
@@ -56,9 +56,9 @@ export default async function refundCreatedHandler({
     console.log('📤 Sending refund to Dashboard for credit note generation')
 
     // Send to Dashboard for credit note generation
-    await axios.post(
-      `${process.env.DASHBOARD_URL}/api/webhooks/medusa/refunds`,
-      {
+    const result = await sendDashboardWebhook({
+      endpoint: '/webhooks/medusa/refunds',
+      data: {
         order_id: orderId,
         order: {
           id: order.id,
@@ -77,18 +77,16 @@ export default async function refundCreatedHandler({
           created_at: latestRefund?.created_at || new Date().toISOString(),
         }
       },
-      {
-        headers: {
-          'X-Medusa-Event': 'payment.refunded',
-          'Content-Type': 'application/json',
-        }
-      }
-    )
+      eventName: 'payment.refunded'
+    })
 
-    console.log('✅ Refund sent to Dashboard for credit note generation')
+    if (result.success) {
+      console.log('✅ Refund sent to Dashboard for credit note generation')
+    } else {
+      console.error('❌ Error sending refund to Dashboard:', result.error)
+    }
   } catch (error) {
     console.error('❌ Error sending refund to Dashboard:', error)
-    console.error('Error details:', error)
   }
 }
 
