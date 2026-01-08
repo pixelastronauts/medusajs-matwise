@@ -2,10 +2,13 @@
 
 ## Overview
 
-When a customer customizes a logomat in the frontend, this automated flow ensures that:
-1. A custom variant is created in Medusa with all customization metadata
-2. The Dashboard receives the variant and creates a Design record
-3. The Medusa variant is updated with the `design_id` for bidirectional linking
+When a variant is created or updated in Medusa, this automated flow ensures that:
+1. The variant is created/updated in Medusa (via API or admin)
+2. A webhook is sent to the Dashboard to sync the variant
+3. For custom variants: The Dashboard creates a Design record
+4. For custom variants: The Medusa variant is updated with the `design_id` for bidirectional linking
+
+**Note:** ALL variants are synced to the dashboard, but only custom variants (with `is_custom_order: true`) get Design records created.
 
 ## Architecture
 
@@ -97,36 +100,37 @@ export const POST = async (req, res) => {
 ```
 
 ### 3. MedusaJS - Webhook Subscriber
-**File:** `src/subscribers/variant-created.ts` ⭐ NEW
+**File:** `src/subscribers/variant-created.ts` ✅ IMPLEMENTED
 
 ```typescript
-export default async function variantCreatedHandler({ event, container }) {
+export default async function variantSync({ event, container }) {
   const { id } = event.data;
   const variant = await fetchVariant(id);
   
-  // Only process custom variants
-  if (!variant.metadata?.is_custom_order) return;
+  // Check for loop prevention
+  if (shouldSkipSync(variant.metadata)) {
+    logger.info('Skipping variant sync to prevent loop');
+    return;
+  }
   
-  // Send webhook to Dashboard
-  await axios.post(
-    `${DASHBOARD_URL}/api/webhooks/medusa/variants`,
-    variant,
-    {
-      headers: {
-        'X-Medusa-Event': 'product-variant.created',
-        'X-Webhook-Secret': process.env.DASHBOARD_WEBHOOK_SECRET,
-      },
-    }
-  );
+  // Send webhook to Dashboard for ALL variants (not just custom ones)
+  await sendDashboardWebhook({
+    endpoint: '/webhooks/medusa/variants',
+    data: variant,
+    eventName: event.name,
+  });
 }
 
 export const config = {
-  event: 'product-variant.created',
+  event: [
+    'product.variant.created',
+    'product.variant.updated',
+  ],
 };
 ```
 
 ### 4. Dashboard - Webhook Handler
-**File:** `app/Http/Controllers/Api/MedusaWebhookController.php` ⭐ NEW METHOD
+**File:** `app/Http/Controllers/Api/MedusaWebhookController.php` ✅ IMPLEMENTED
 
 ```php
 public function handleVariant(Request $request)

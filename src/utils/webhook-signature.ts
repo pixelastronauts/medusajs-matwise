@@ -1,5 +1,6 @@
 import { createHmac } from 'crypto'
-import { DASHBOARD_API_URL, DASHBOARD_WEBHOOK_SECRET } from '../lib/constants'
+import https from 'https'
+import { DASHBOARD_API_URL, DASHBOARD_WEBHOOK_SECRET, IS_DEV } from '../lib/constants'
 
 /**
  * Generate HMAC-SHA256 signature for webhook payload
@@ -32,6 +33,23 @@ interface SendWebhookResult {
   success: boolean
   data?: any
   error?: string
+  debug?: {
+    url: string
+    hasSignature: boolean
+  }
+}
+
+/**
+ * Create an HTTPS agent that ignores SSL errors in development
+ * This is needed for .test domains with self-signed certificates
+ */
+function createHttpsAgent() {
+  if (IS_DEV) {
+    return new https.Agent({
+      rejectUnauthorized: false // Allow self-signed certs in dev
+    })
+  }
+  return undefined
 }
 
 /**
@@ -80,40 +98,100 @@ export async function sendDashboardWebhook(options: SendWebhookOptions): Promise
     headers['X-Medusa-Signature'] = signature
   }
 
+  // Log in development
+  if (IS_DEV) {
+    console.log(`🔗 Webhook request to: ${url}`)
+    console.log(`   Event: ${eventName || 'none'}`)
+    console.log(`   Signature: ${signature ? 'yes' : 'no'}`)
+  }
+
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeout)
 
-    const response = await fetch(url, {
+    // Use custom fetch options for HTTPS with self-signed certs
+    const fetchOptions: RequestInit & { agent?: https.Agent } = {
       method: 'POST',
       headers,
       body,
       signal: controller.signal,
-    })
+    }
 
+    // For HTTPS URLs in development, we need to handle SSL differently
+    // Node's fetch doesn't support agent directly, so we use a workaround
+    if (IS_DEV && url.startsWith('https://')) {
+      // Set NODE_TLS_REJECT_UNAUTHORIZED for this request
+      const originalTLS = process.env.NODE_TLS_REJECT_UNAUTHORIZED
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+      
+      try {
+        const response = await fetch(url, fetchOptions)
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          const text = await response.text()
+          return {
+            success: false,
+            error: `Dashboard responded with ${response.status}: ${text}`,
+            debug: { url, hasSignature: !!signature }
+          }
+        }
+
+        const responseData = await response.json()
+        return {
+          success: true,
+          data: responseData,
+          debug: { url, hasSignature: !!signature }
+        }
+      } finally {
+        // Restore original TLS setting
+        if (originalTLS !== undefined) {
+          process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalTLS
+        } else {
+          delete process.env.NODE_TLS_REJECT_UNAUTHORIZED
+        }
+      }
+    }
+
+    const response = await fetch(url, fetchOptions)
     clearTimeout(timeoutId)
 
     if (!response.ok) {
       const text = await response.text()
       return {
         success: false,
-        error: `Dashboard responded with ${response.status}: ${text}`
+        error: `Dashboard responded with ${response.status}: ${text}`,
+        debug: { url, hasSignature: !!signature }
       }
     }
 
     const responseData = await response.json()
     return {
       success: true,
-      data: responseData
+      data: responseData,
+      debug: { url, hasSignature: !!signature }
     }
   } catch (error: any) {
-    const errorMsg = error.name === 'AbortError' 
-      ? 'Request timeout' 
-      : error.message || 'Unknown error'
+    let errorMsg = error.message || 'Unknown error'
+    
+    if (error.name === 'AbortError') {
+      errorMsg = `Request timeout after ${timeout}ms`
+    } else if (error.cause) {
+      // Include the cause for more details (e.g., SSL errors)
+      errorMsg = `${errorMsg} (${error.cause.code || error.cause.message || 'unknown cause'})`
+    }
+    
+    if (IS_DEV) {
+      console.error(`❌ Webhook failed to ${url}:`, errorMsg)
+      if (error.cause) {
+        console.error('   Cause:', error.cause)
+      }
+    }
     
     return {
       success: false,
-      error: errorMsg
+      error: errorMsg,
+      debug: { url, hasSignature: !!signature }
     }
   }
 }

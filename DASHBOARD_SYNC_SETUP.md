@@ -43,6 +43,8 @@ Make sure these routes are accessible in your Laravel dashboard:
 ```
 POST /api/webhooks/medusa/customers
 POST /api/webhooks/medusa/orders
+POST /api/webhooks/medusa/variants
+POST /api/webhooks/medusa/companies
 POST /api/webhooks/medusa/products (optional)
 ```
 
@@ -70,6 +72,8 @@ php artisan queue:work --queue=webhooks,medusa-sync
 | `customer.updated` | Customer details changed | All customer fields + metadata |
 | `order.placed` | Order is placed | Order details, line items, addresses, customer |
 | `order.updated` | Order status/details change | All order fields, addresses |
+| `product.variant.created` | New variant created | SKU, title, prices, options, metadata |
+| `product.variant.updated` | Variant details changed | All variant fields + metadata |
 
 ### From Dashboard to Medusa
 
@@ -228,49 +232,66 @@ The system should prevent this automatically, but if you see loops:
 4. **Monitor webhook endpoints** for unusual activity
 5. **Rate limit** webhook endpoints to prevent abuse
 
+## Variant Sync (Implemented)
+
+Variants are automatically synced to the dashboard when created or updated in Medusa.
+
+### How it Works
+
+1. **Medusa Side**: `src/subscribers/variant-created.ts` listens for `product.variant.created` and `product.variant.updated` events
+2. **Dashboard Side**: `app/Http/Controllers/Api/MedusaWebhookController.php::handleVariant()` processes the webhook
+3. **All variants** are synced to the dashboard database
+4. **Custom variants** (with `is_custom_order: true`) also get Design records created automatically
+5. **Bidirectional linking**: For custom variants, the dashboard updates the Medusa variant with `design_id`
+
+See `VARIANT_DESIGN_FLOW.md` for detailed documentation on the variant sync flow.
+
 ## Advanced: Adding More Sync Events
 
-To sync additional events:
+To sync additional entity types, follow this pattern:
 
 ### 1. Add to Medusa Subscriber
 
-Edit `src/subscribers/dashboard-sync.ts`:
+Edit `src/subscribers/dashboard-sync.ts` or create a new subscriber file:
 
 ```typescript
-case 'product.variant.updated':
-  // Fetch variant data
-  payload = await productModuleService.retrieveVariant(data.id)
-  endpoint = '/webhooks/medusa/variants'
+case 'entity.created':
+case 'entity.updated':
+  // Fetch entity data with relations
+  const entity = await moduleService.retrieve(data.id, {
+    relations: ['related_entity']
+  })
+  
+  // Check for loop prevention
+  if (shouldSkipSync(entity.metadata, 'entity', logger)) {
+    return
+  }
+  
+  payload = entity
+  endpoint = '/webhooks/medusa/entities'
   break
 ```
 
-### 2. Add to Subscriber Config
-
-```typescript
-export const config: SubscriberConfig = {
-  event: [
-    // ... existing events
-    'product.variant.updated',
-  ]
-}
-```
-
-### 3. Create Dashboard Webhook Handler
+### 2. Create Dashboard Webhook Handler
 
 In `dashboard/app/Http/Controllers/Api/MedusaWebhookController.php`:
 
 ```php
-public function handleVariant(Request $request) {
-    // Process variant webhook
+public function handleEntity(Request $request) {
+    // Verify signature
+    $this->verifyWebhookSignature($request);
+    
+    // Process entity data
+    // Use updateOrCreate for upsert behavior
 }
 ```
 
-### 4. Add Route
+### 3. Add Route
 
 In `routes/api.php`:
 
 ```php
-Route::post('/webhooks/medusa/variants', [MedusaWebhookController::class, 'handleVariant']);
+Route::post('/webhooks/medusa/entities', [MedusaWebhookController::class, 'handleEntity']);
 ```
 
 ## Performance Optimization

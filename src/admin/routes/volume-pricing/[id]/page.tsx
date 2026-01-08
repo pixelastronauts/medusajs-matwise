@@ -14,7 +14,7 @@ import {
   Switch,
   Checkbox,
 } from "@medusajs/ui"
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useParams, useNavigate, useSearchParams } from "react-router-dom"
 
 type Tier = {
@@ -111,6 +111,9 @@ const PriceListEditPage = () => {
     { min_quantity: 5, max_quantity: 19, price_per_sqm: 100, requires_login: false },
     { min_quantity: 20, max_quantity: null, price_per_sqm: 80, requires_login: false },
   ])
+  
+  // Debounce ref for tier sorting
+  const sortDebounceRef = useRef<NodeJS.Timeout | null>(null)
 
   const fetchData = useCallback(async () => {
     try {
@@ -152,15 +155,25 @@ const PriceListEditPage = () => {
           priority: pl.priority || 0,
         })
 
-        setTiers(
-          pl.tiers?.map((t: any) => ({
-            id: t.id,
-            min_quantity: t.min_quantity,
-            max_quantity: t.max_quantity,
-            price_per_sqm: t.price_per_sqm_display || Number(t.price_per_sqm) / 100,
-            requires_login: t.requires_login || false,
-          })) || []
-        )
+        // Load tiers and normalize them (sort by min_quantity, auto-set max_quantity)
+        const loadedTiers = pl.tiers?.map((t: any) => ({
+          id: t.id,
+          min_quantity: t.min_quantity,
+          max_quantity: t.max_quantity,
+          price_per_sqm: t.price_per_sqm_display || Number(t.price_per_sqm) / 100,
+          requires_login: t.requires_login || false,
+        })) || []
+        
+        // Sort and normalize the loaded tiers
+        const sortedTiers = [...loadedTiers].sort((a: Tier, b: Tier) => a.min_quantity - b.min_quantity)
+        const normalizedTiers = sortedTiers.map((tier: Tier, idx: number) => {
+          const nextTier = sortedTiers[idx + 1]
+          return {
+            ...tier,
+            max_quantity: nextTier ? nextTier.min_quantity - 1 : null,
+          }
+        })
+        setTiers(normalizedTiers.length > 0 ? normalizedTiers : loadedTiers)
 
         // Set linked variants from the response
         setSelectedVariantIds(data.variant_ids || [])
@@ -206,6 +219,15 @@ const PriceListEditPage = () => {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+  
+  // Cleanup debounce timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (sortDebounceRef.current) {
+        clearTimeout(sortDebounceRef.current)
+      }
+    }
+  }, [])
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
@@ -303,30 +325,90 @@ const PriceListEditPage = () => {
     })
   }
 
+  // Sort tiers by min_quantity and auto-adjust max_quantity values
+  const sortAndNormalizeTiers = (tiersToSort: Tier[]): Tier[] => {
+    // Sort by min_quantity
+    const sorted = [...tiersToSort].sort((a, b) => a.min_quantity - b.min_quantity)
+    
+    // Auto-adjust max_quantity to be one less than the next tier's min_quantity
+    return sorted.map((tier, idx) => {
+      const nextTier = sorted[idx + 1]
+      return {
+        ...tier,
+        // Set max_quantity to be next tier's min_quantity - 1, or null if last tier
+        max_quantity: nextTier ? nextTier.min_quantity - 1 : null,
+      }
+    })
+  }
+
   const updateTier = (index: number, field: keyof Tier, value: any) => {
     const newTiers = [...tiers]
     newTiers[index] = { ...newTiers[index], [field]: value }
-    setTiers(newTiers)
+    
+    // Clear any existing debounce
+    if (sortDebounceRef.current) {
+      clearTimeout(sortDebounceRef.current)
+    }
+    
+    // If min_quantity changed, debounce the sort and normalize
+    if (field === "min_quantity") {
+      // Immediately update the value so user sees their input
+      setTiers(newTiers)
+      
+      // Debounce the sorting/normalization (500ms)
+      sortDebounceRef.current = setTimeout(() => {
+        setTiers((currentTiers) => sortAndNormalizeTiers(currentTiers))
+      }, 500)
+    } else if (field === "max_quantity") {
+      // Immediately update the value so user sees their input
+      setTiers(newTiers)
+      
+      // Debounce updating the next tier's min_quantity (500ms)
+      sortDebounceRef.current = setTimeout(() => {
+        setTiers((currentTiers) => {
+          const updatedTiers = [...currentTiers]
+          const sortedTiers = [...updatedTiers].sort((a, b) => a.min_quantity - b.min_quantity)
+          const sortedIndex = sortedTiers.findIndex(t => t.min_quantity === updatedTiers[index].min_quantity)
+          
+          if (sortedIndex < sortedTiers.length - 1 && updatedTiers[index].max_quantity !== null) {
+            // Find and update the next tier's min_quantity
+            const nextTier = sortedTiers[sortedIndex + 1]
+            const nextTierOriginalIndex = updatedTiers.findIndex(t => t.min_quantity === nextTier.min_quantity && t !== updatedTiers[index])
+            if (nextTierOriginalIndex !== -1) {
+              updatedTiers[nextTierOriginalIndex] = {
+                ...updatedTiers[nextTierOriginalIndex],
+                min_quantity: (updatedTiers[index].max_quantity as number) + 1,
+              }
+            }
+          }
+          return sortAndNormalizeTiers(updatedTiers)
+        })
+      }, 500)
+    } else {
+      setTiers(newTiers)
+    }
   }
 
   const addTier = () => {
-    const lastTier = tiers[tiers.length - 1]
+    // Find a good starting point for the new tier
+    const sortedTiers = [...tiers].sort((a, b) => a.min_quantity - b.min_quantity)
+    const lastTier = sortedTiers[sortedTiers.length - 1]
     const newMinQty = lastTier ? (lastTier.max_quantity || lastTier.min_quantity) + 1 : 1
 
-    setTiers([
-      ...tiers,
-      {
-        min_quantity: newMinQty,
-        max_quantity: null,
-        price_per_sqm: lastTier ? lastTier.price_per_sqm * 0.9 : 80,
-        requires_login: false,
-      },
-    ])
+    const newTier: Tier = {
+      min_quantity: newMinQty,
+      max_quantity: null,
+      price_per_sqm: lastTier ? Math.round(lastTier.price_per_sqm * 0.9) : 80,
+      requires_login: false,
+    }
+
+    setTiers(sortAndNormalizeTiers([...tiers, newTier]))
   }
 
   const removeTier = (index: number) => {
     if (tiers.length <= 1) return
-    setTiers(tiers.filter((_, i) => i !== index))
+    const newTiers = tiers.filter((_, i) => i !== index)
+    setTiers(sortAndNormalizeTiers(newTiers))
   }
 
   const calculatePreview = async () => {
