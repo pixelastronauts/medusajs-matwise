@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
-import { Container, Badge, Text, Heading, Table, Button } from "@medusajs/ui"
+import { Container, Badge, Text, Heading, Table, Button, toast } from "@medusajs/ui"
 import { useParams } from "react-router-dom"
-import { ArrowPath, EyeSlash, Eye, PencilSquare } from "@medusajs/icons"
+import { ArrowPath, EyeSlash, Eye, PencilSquare, Star, StarSolid, DotsSix } from "@medusajs/icons"
 
 type Variant = {
   id: string
@@ -21,13 +21,19 @@ type VariantStats = {
 const ProductBaseVariantsWidget = () => {
   const { id: productId } = useParams()
 
-  const [variants, setVariants] = useState<Variant[]>([])
   const [baseVariants, setBaseVariants] = useState<Variant[]>([])
   const [customVariants, setCustomVariants] = useState<Variant[]>([])
   const [stats, setStats] = useState<VariantStats>({ total: 0, base: 0, custom: 0 })
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [defaultVariantId, setDefaultVariantId] = useState<string | null>(null)
+  
+  // Drag and drop state
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const dragCounter = useRef(0)
 
   useEffect(() => {
     fetchVariants()
@@ -50,6 +56,7 @@ const ProductBaseVariantsWidget = () => {
         // Separate base vs custom variants
         const base: Variant[] = []
         const custom: Variant[] = []
+        let foundDefaultId: string | null = null
         
         allVariants.forEach((v: Variant) => {
           const isCustomOrder = v.metadata?.is_custom_order === true
@@ -60,12 +67,23 @@ const ProductBaseVariantsWidget = () => {
             custom.push(v)
           } else {
             base.push(v)
+            // Check if this is the default variant
+            if (v.metadata?.is_default_variant === true) {
+              foundDefaultId = v.id
+            }
           }
         })
         
-        setVariants(allVariants)
+        // Sort base variants by sort_order metadata
+        base.sort((a, b) => {
+          const orderA = a.metadata?.sort_order ?? 9999
+          const orderB = b.metadata?.sort_order ?? 9999
+          return orderA - orderB
+        })
+        
         setBaseVariants(base)
         setCustomVariants(custom)
+        setDefaultVariantId(foundDefaultId)
         setStats({
           total: allVariants.length,
           base: base.length,
@@ -78,6 +96,111 @@ const ProductBaseVariantsWidget = () => {
       setError("Failed to load variants")
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', index.toString())
+    // Add a slight delay to allow the drag image to be created
+    setTimeout(() => {
+      const target = e.target as HTMLElement
+      target.style.opacity = '0.5'
+    }, 0)
+  }
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    const target = e.target as HTMLElement
+    target.style.opacity = '1'
+    setDraggedIndex(null)
+    setDragOverIndex(null)
+    dragCounter.current = 0
+  }
+
+  const handleDragEnter = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    dragCounter.current++
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index)
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounter.current--
+    if (dragCounter.current === 0) {
+      setDragOverIndex(null)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault()
+    dragCounter.current = 0
+    
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null)
+      setDragOverIndex(null)
+      return
+    }
+
+    const newVariants = [...baseVariants]
+    const [draggedItem] = newVariants.splice(draggedIndex, 1)
+    newVariants.splice(dropIndex, 0, draggedItem)
+    
+    setBaseVariants(newVariants)
+    setDraggedIndex(null)
+    setDragOverIndex(null)
+    
+    // Auto-save after drop
+    await saveOrder(newVariants, defaultVariantId)
+  }
+
+  const toggleDefaultVariant = async (variantId: string) => {
+    const newDefaultId = defaultVariantId === variantId ? null : variantId
+    setDefaultVariantId(newDefaultId)
+    // Auto-save when toggling default
+    await saveOrder(baseVariants, newDefaultId)
+  }
+
+  const saveOrder = async (variants: Variant[], defaultId: string | null) => {
+    try {
+      setSaving(true)
+      
+      const sortedVariants = variants.map((v, index) => ({
+        variant_id: v.id,
+        sort_order: index,
+      }))
+
+      const response = await fetch(`/admin/products/${productId}/variants/sort`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sorted_variants: sortedVariants,
+          default_variant_id: defaultId,
+        }),
+      })
+
+      if (response.ok) {
+        toast.success("Saved")
+      } else {
+        const errorData = await response.json()
+        toast.error(errorData.message || "Failed to save")
+        // Refetch to restore state on error
+        await fetchVariants()
+      }
+    } catch (err) {
+      toast.error("Failed to save")
+      await fetchVariants()
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -105,7 +228,12 @@ const ProductBaseVariantsWidget = () => {
   return (
     <Container className="p-0">
       <div className="flex items-center justify-between px-6 py-4">
-        <Heading level="h2" className="text-base">Variant Summary</Heading>
+        <div className="flex items-center gap-2">
+          <Heading level="h2" className="text-base">Variant Summary</Heading>
+          {saving && (
+            <ArrowPath className="w-3 h-3 animate-spin text-gray-400" />
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Badge color="green" size="small">
             {stats.base} base
@@ -118,34 +246,68 @@ const ProductBaseVariantsWidget = () => {
         </div>
       </div>
 
-
       <div className="divide-y">
-    
         {baseVariants.length === 0 ? (
-          <Text className="text-sm text-gray-500 italic">No base variants found</Text>
+          <Text className="text-sm text-gray-500 italic px-6 pb-4">No base variants found</Text>
         ) : (
           <div className="bg-gray-50 rounded overflow-hidden">
             <Table>
               <Table.Header>
                 <Table.Row>
+                  <Table.HeaderCell className="text-xs w-10"></Table.HeaderCell>
                   <Table.HeaderCell className="text-xs">Title</Table.HeaderCell>
                   <Table.HeaderCell className="text-xs">SKU</Table.HeaderCell>
+                  <Table.HeaderCell className="text-xs w-16 text-center">Default</Table.HeaderCell>
                   <Table.HeaderCell className="text-xs w-10"></Table.HeaderCell>
                 </Table.Row>
               </Table.Header>
               <Table.Body>
-                {baseVariants.slice(0, showDetails ? undefined : 5).map((variant) => (
-                  <Table.Row key={variant.id}>
+                {baseVariants.slice(0, showDetails ? undefined : 5).map((variant, index) => (
+                  <Table.Row 
+                    key={variant.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragEnd={handleDragEnd}
+                    onDragEnter={(e) => handleDragEnter(e, index)}
+                    onDragLeave={handleDragLeave}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, index)}
+                    className={`
+                      cursor-grab active:cursor-grabbing transition-all duration-150
+                      ${draggedIndex === index ? 'opacity-50' : ''}
+                      ${dragOverIndex === index ? 'bg-blue-50 border-t-2 border-blue-400' : ''}
+                    `}
+                  >
+                    <Table.Cell className="text-xs">
+                      <div className="flex items-center">
+                        <DotsSix className="w-4 h-4 text-gray-400 cursor-grab" />
+                      </div>
+                    </Table.Cell>
                     <Table.Cell className="text-xs">{variant.title || '-'}</Table.Cell>
                     <Table.Cell className="text-xs font-mono text-gray-500">
                       {variant.sku || '-'}
+                    </Table.Cell>
+                    <Table.Cell className="text-xs text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleDefaultVariant(variant.id)
+                        }}
+                        className="p-1 hover:bg-gray-200 rounded transition-colors"
+                        title={defaultVariantId === variant.id ? "Remove as base price variant" : "Set as base price variant"}
+                      >
+                        {defaultVariantId === variant.id ? (
+                          <StarSolid className="w-4 h-4 text-yellow-500" />
+                        ) : (
+                          <Star className="w-4 h-4 text-gray-400 hover:text-yellow-500" />
+                        )}
+                      </button>
                     </Table.Cell>
                     <Table.Cell>
                       <button 
                         onClick={(e) => {
                           e.stopPropagation()
                           e.preventDefault()
-                          // Use window.location for full page nav (bypasses React Router drawer behavior)
                           window.location.href = `/app/products/${productId}/variants/${variant.id}`
                         }}
                         className="p-1 hover:bg-gray-100 rounded transition-colors"
@@ -184,8 +346,20 @@ const ProductBaseVariantsWidget = () => {
         )}
       </div>
 
+      {/* Helper text */}
+      {baseVariants.length > 0 && (
+        <div className="px-6 py-3 border-t">
+          <Text className="text-xs text-gray-500">
+            <DotsSix className="w-3 h-3 inline-block text-gray-400 mr-1" />
+            <span>Drag to reorder variants.</span>
+            <StarSolid className="w-3 h-3 inline-block text-yellow-500 mx-1" />
+            <span>Mark as "default" to use as base price on the frontend.</span>
+          </Text>
+        </div>
+      )}
+
       {showDetails && stats.custom > 0 && (
-        <div className="mt-3 pt-3 border-t">
+        <div className="mt-3 pt-3 border-t px-6">
           <Text className="text-sm text-gray-600 font-medium mb-2">
             Custom Variants ({stats.custom})
           </Text>
@@ -224,4 +398,3 @@ export const config = defineWidgetConfig({
 })
 
 export default ProductBaseVariantsWidget
-
