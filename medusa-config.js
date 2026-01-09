@@ -22,7 +22,8 @@ import {
   MINIO_SECRET_KEY,
   MINIO_BUCKET,
   MEILISEARCH_HOST,
-  MEILISEARCH_ADMIN_KEY
+  MEILISEARCH_ADMIN_KEY,
+  IS_DEV
 } from 'lib/constants';
 
 loadEnv(process.env.NODE_ENV, process.cwd());
@@ -63,7 +64,7 @@ const medusaConfig = {
         api_token: process.env.SANITY_API_TOKEN,
         project_id: process.env.SANITY_PROJECT_ID || 'x8b8f8al',
         api_version: new Date().toISOString().split('T')[0],
-        dataset: process.env.SANITY_DATASET || 'production',
+        dataset: process.env.SANITY_DATASET || (IS_DEV ? 'staging' : 'production'),
         studio_url: process.env.SANITY_STUDIO_URL || 'http://localhost:3000',
         type_map: {
           product: 'product',
