@@ -36,7 +36,15 @@ export const syncStep = createStep(
         metadata: { count } = {},
       } = await query.graph({
         entity: "product",
-        fields: ["id", "title", "handle", "sanity_product.*", "variants.*"],
+        fields: [
+          "id",
+          "title",
+          "handle",
+          "sanity_product.*",
+          "variants.id",
+          "variants.title",
+          "variants.sku",
+        ],
         filters,
         pagination: {
           skip: offset,
