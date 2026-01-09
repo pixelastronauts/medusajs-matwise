@@ -162,6 +162,9 @@ class SanityModuleService {
     data: SyncDocumentInputs<T>
   ) {
     const existing = await this.client.getDocument(data.id)
+    
+    this.logger.info(`[Sanity Sync] ${type} ${data.id}: existing=${!!existing}, title="${(data as any).title}"`)
+    
     if (existing) {
       return await this.updateSyncDocument(type, data)
     }
@@ -179,7 +182,16 @@ class SanityModuleService {
 
   async updateSyncDocument<T extends SyncDocumentTypes>(type: T, data: SyncDocumentInputs<T>) {
     const operations = this.updateTransformationMap[type](data)
-    return await this.client.patch(data.id, operations).commit()
+    this.logger.info(`[Sanity Sync] Updating ${type} ${data.id} with: ${JSON.stringify(operations)}`)
+    
+    try {
+      const result = await this.client.patch(data.id, operations).commit()
+      this.logger.info(`[Sanity Sync] Successfully updated ${type} ${data.id}`)
+      return result
+    } catch (error) {
+      this.logger.error(`[Sanity Sync] Failed to update ${type} ${data.id}: ${error}`)
+      throw error
+    }
   }
 
   async retrieve(id: string) {
