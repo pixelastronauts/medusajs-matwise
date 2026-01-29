@@ -89,7 +89,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       // Sample products present → Show only PostNL for samples
       // This takes priority over everything else (mercury + sample = samples shipping)
       const sampleProfileId = profileDetails["sample"]?.id
-      
+
       filteredOptions = result.filter((option: any) => {
         // Match by the sample shipping profile ID
         return option.shipping_profile_id === sampleProfileId
@@ -98,7 +98,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     } else if (hasOnlyMercury) {
       // Mercury products ONLY (no samples, no default) → Show only DPD (mercury shipping option)
       const mercuryProfileId = profileDetails["mercury"]?.id
-      
+
       filteredOptions = result.filter((option: any) => {
         // Match by the mercury shipping profile ID
         return option.shipping_profile_id === mercuryProfileId
@@ -107,7 +107,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     } else if (hasDefaultProducts && !hasMercuryProducts) {
       // Default products only → Show default PostNL
       const defaultProfileId = profileDetails["default"]?.id
-      
+
       filteredOptions = result.filter((option: any) => {
         return option.shipping_profile_id === defaultProfileId
       })

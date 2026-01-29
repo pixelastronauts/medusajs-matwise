@@ -1,5 +1,5 @@
 import { AbstractFulfillmentProviderService } from "@medusajs/framework/utils"
-import { 
+import {
   Logger,
   CalculateShippingOptionPriceDTO,
   FulfillmentOption,
@@ -10,9 +10,9 @@ import {
   FulfillmentOrderDTO,
   FulfillmentDTO
 } from "@medusajs/framework/types"
-import { 
-  MatwiseFulfillmentOptions, 
-  ShippingRates 
+import {
+  MatwiseFulfillmentOptions,
+  ShippingRates
 } from "./types"
 
 type InjectedDependencies = {
@@ -195,7 +195,7 @@ class MatwiseFulfillmentProviderService extends AbstractFulfillmentProviderServi
     fulfillment: Partial<Omit<FulfillmentDTO, "provider_id" | "data" | "items">>
   ): Promise<CreateFulfillmentResult> {
     const carrier = data.carrier as string || "postnl"
-    
+
     this.logger_.info(`[Matwise Fulfillment] Creating fulfillment with ${carrier}`)
 
     // TODO: Integrate with actual carrier APIs (PostNL/DPD)
