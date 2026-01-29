@@ -1,4 +1,4 @@
-import { Modules } from '@medusajs/framework/utils'
+import { Modules, ContainerRegistrationKeys } from '@medusajs/framework/utils'
 import { INotificationModuleService, IOrderModuleService } from '@medusajs/framework/types'
 import { SubscriberArgs, SubscriberConfig } from '@medusajs/medusa'
 import { EmailTemplates } from '../modules/email-notifications/templates'
@@ -10,15 +10,70 @@ export default async function orderPlacedHandler({
 }: SubscriberArgs<any>) {
   const notificationModuleService: INotificationModuleService = container.resolve(Modules.NOTIFICATION)
   const orderModuleService: IOrderModuleService = container.resolve(Modules.ORDER)
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
   
-  const order = await orderModuleService.retrieveOrder(data.id, { relations: ['items', 'summary', 'shipping_address'] })
+  const order = await orderModuleService.retrieveOrder(data.id, { relations: ['items', 'summary', 'shipping_address', 'billing_address'] })
   const shippingAddress = await (orderModuleService as any).orderAddressService_.retrieve(order.shipping_address.id)
+  
+  // Get billing address - if not set, use shipping address as billing
+  let billingAddress = order.billing_address
+  if (!billingAddress && order.shipping_address) {
+    billingAddress = order.shipping_address
+  } else if (billingAddress?.id) {
+    // Retrieve full billing address details
+    billingAddress = await (orderModuleService as any).orderAddressService_.retrieve(billingAddress.id)
+  }
 
-  // Send to Dashboard for invoice generation
+  // Get payment collections for this order
+  let paymentCollections: any[] = []
+  let capturedPayment: any = null
+  
+  try {
+    const { data: ordersWithPayment } = await query.graph({
+      entity: 'order',
+      fields: [
+        'id',
+        'payment_collections.*',
+        'payment_collections.payments.*',
+      ],
+      filters: { id: data.id },
+    })
+    
+    const orderWithPayment = ordersWithPayment?.[0] as any
+    paymentCollections = orderWithPayment?.payment_collections || []
+    
+    // Find captured payment
+    const payments = paymentCollections[0]?.payments || []
+    capturedPayment = payments.find((p: any) => p.captured_at !== null)
+    
+    if (capturedPayment) {
+      console.log('💳 Found captured payment, including in order.placed webhook')
+    }
+  } catch (error) {
+    console.error('⚠️  Could not fetch payment collections:', error)
+  }
+
+  // Send to Dashboard with payment data included
+  // The dashboard will start the workflow if payment is captured
   console.log('📤 Sending order to Dashboard for invoice generation')
+  console.log('📍 Billing address:', billingAddress ? `${billingAddress.first_name} ${billingAddress.last_name}, ${billingAddress.address_1}` : 'Not set')
+  
   const result = await sendDashboardWebhook({
     endpoint: '/webhooks/medusa/orders',
-    data: order,
+    data: {
+      ...order,
+      // Explicitly include billing_address (falls back to shipping if not set)
+      billing_address: billingAddress,
+      payment_collections: paymentCollections,
+      captured_payment: capturedPayment ? {
+        id: capturedPayment.id,
+        amount: capturedPayment.amount,
+        currency_code: capturedPayment.currency_code,
+        provider_id: capturedPayment.provider_id,
+        captured_at: capturedPayment.captured_at,
+        payment_collection_id: paymentCollections[0]?.id,
+      } : null,
+    },
     eventName: 'order.placed'
   })
   

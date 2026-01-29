@@ -33,6 +33,7 @@
 		"test:unit": "TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit"
 	},
 	"dependencies": {
+		"@hifive-dev/medusa-fulfillment-sendcloud": "^1.1.0",
 		"@medusajs/admin-sdk": "2.10.2",
 		"@medusajs/cli": "2.10.2",
 		"@medusajs/dashboard": "2.10.2",

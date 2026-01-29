@@ -199,7 +199,31 @@ const medusaConfig = {
           },
         ],
       },
-    }] : [])
+    }] : []),
+    // Fulfillment module with custom Matwise provider
+    {
+      key: Modules.FULFILLMENT,
+      resolve: '@medusajs/medusa/fulfillment',
+      options: {
+        providers: [
+          // Keep the manual provider for backwards compatibility
+          {
+            resolve: '@medusajs/medusa/fulfillment-manual',
+            id: 'manual',
+          },
+          // Custom Matwise fulfillment provider with country-based pricing
+          {
+            resolve: './src/modules/matwise-fulfillment',
+            id: 'matwise',
+            options: {
+              // Add PostNL/DPD API keys here when integrating
+              // postnl_api_key: process.env.POSTNL_API_KEY,
+              // dpd_api_key: process.env.DPD_API_KEY,
+            },
+          },
+        ],
+      },
+    }
   ],
   plugins: [
     ...(MEILISEARCH_HOST && MEILISEARCH_ADMIN_KEY ? [{
