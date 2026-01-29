@@ -12,16 +12,38 @@ export default async function orderPlacedHandler({
   const orderModuleService: IOrderModuleService = container.resolve(Modules.ORDER)
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   
-  const order = await orderModuleService.retrieveOrder(data.id, { relations: ['items', 'summary', 'shipping_address', 'billing_address'] })
-  const shippingAddress = await (orderModuleService as any).orderAddressService_.retrieve(order.shipping_address.id)
+  // Use Query API to get complete order data with all calculated fields for items
+  // retrieveOrder with relations doesn't include calculated totals like tax_total, subtotal, total
+  const { data: ordersWithDetails } = await query.graph({
+    entity: 'order',
+    fields: [
+      '*',
+      'items.*',
+      'items.tax_lines.*',
+      'items.adjustments.*',
+      'items.variant.*',
+      'items.variant.product.*',
+      'summary.*',
+      'shipping_address.*',
+      'billing_address.*',
+      'customer.*',
+    ],
+    filters: { id: data.id },
+  })
+  
+  const order = ordersWithDetails?.[0] as any
+  if (!order) {
+    console.error('❌ Could not fetch order details for order.placed webhook:', data.id)
+    return
+  }
+  
+  const shippingAddress = order.shipping_address
   
   // Get billing address - if not set, use shipping address as billing
+  // Query API already returns full address data, no need for additional retrieval
   let billingAddress = order.billing_address
   if (!billingAddress && order.shipping_address) {
     billingAddress = order.shipping_address
-  } else if (billingAddress?.id) {
-    // Retrieve full billing address details
-    billingAddress = await (orderModuleService as any).orderAddressService_.retrieve(billingAddress.id)
   }
 
   // Get payment collections for this order

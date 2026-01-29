@@ -261,7 +261,7 @@ MEDUSA_API_KEY=your-api-key-here
 POST /store/products/prod_123/variants
 {
   "title": "Logomat - 100x80cm - Budget",
-  "sku": "MW_DOORMAT-CUSTOM-100X80-1234567890",
+  "sku": "MW_MAT-CUSTOM-100X80-1234567890",
   "metadata": {
     "width_cm": 100,
     "height_cm": 80,

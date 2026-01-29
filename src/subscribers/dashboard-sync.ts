@@ -1,4 +1,4 @@
-import { Modules } from '@medusajs/framework/utils'
+import { Modules, ContainerRegistrationKeys } from '@medusajs/framework/utils'
 import { 
   IOrderModuleService, 
   ICustomerModuleService, 
@@ -34,28 +34,37 @@ export default async function dashboardSync({
     switch (name) {
       case 'order.placed':
       case 'order.updated':
-        const orderModuleService: IOrderModuleService = container.resolve(Modules.ORDER)
-        const customerModuleServiceForOrder: ICustomerModuleService = container.resolve(Modules.CUSTOMER)
+        const query = container.resolve(ContainerRegistrationKeys.QUERY)
         
-        // Retrieve full order with relations
-        const order = await orderModuleService.retrieveOrder(data.id, { 
-          relations: ['items', 'shipping_address', 'billing_address', 'summary'] 
+        // Use Query API to get complete order data with all calculated fields for items
+        // retrieveOrder with relations doesn't include calculated totals like tax_total, subtotal, total
+        const { data: ordersWithDetails } = await query.graph({
+          entity: 'order',
+          fields: [
+            '*',
+            'items.*',
+            'items.tax_lines.*',
+            'items.adjustments.*',
+            'items.variant.*',
+            'items.variant.product.*',
+            'summary.*',
+            'shipping_address.*',
+            'billing_address.*',
+            'customer.*',
+          ],
+          filters: { id: data.id },
         })
+        
+        const order = ordersWithDetails?.[0] as any
+        if (!order) {
+          logger.error(`Could not fetch order details for dashboard sync: ${data.id}`)
+          return
+        }
 
         // Loop prevention: Check if this was recently synced from dashboard
         if (shouldSkipSync(order.metadata, 'order', logger)) {
           logger.info(`Skipping order sync to prevent loop - orderId: ${order.id}`)
           return
-        }
-
-        // Fetch and attach customer if present
-        if (order.customer_id) {
-            try {
-                const customer = await customerModuleServiceForOrder.retrieveCustomer(order.customer_id)
-                Object.assign(order, { customer })
-            } catch (e) {
-                logger.warn(`Could not retrieve customer ${order.customer_id} for order ${order.id}`)
-            }
         }
 
         payload = order
