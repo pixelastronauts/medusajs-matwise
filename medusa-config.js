@@ -197,6 +197,18 @@ const medusaConfig = {
               debug: false,
             },
           },
+          // Custom Klarna provider
+          {
+            resolve: './src/providers/mollie-klarna',
+            id: 'mollie',
+            options: {
+              apiKey: MOLLIE_API_KEY,
+              redirectUrl: MOLLIE_REDIRECT_URL,
+              medusaUrl: MEDUSA_URL,
+              autoCapture: true,
+              debug: false,
+            },
+          },
         ],
       },
     }] : []),
